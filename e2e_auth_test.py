@@ -30,33 +30,35 @@ def main():
     recruiter_email = f'recruiter.{suffix}@mail.com'
     password = 'StrongPass123'
 
-    status, candidate_reg = call('POST', '/auth/register', {
+    status, candidate_reg = call('POST', '/register/candidate', {
         'full_name': 'Candidate Test',
         'email': candidate_email,
+        'phone': '9999999999',
         'password': password,
-        'role': 'candidate',
-        'phone': '9999999999'
     })
     assert status == 201, f'Candidate registration failed: {status} {candidate_reg}'
+    candidate_id = candidate_reg['candidate_id']
 
-    status, recruiter_reg = call('POST', '/auth/register', {
+    status, recruiter_reg = call('POST', '/register/recruiter', {
         'full_name': 'Recruiter Test',
         'email': recruiter_email,
-        'password': password,
-        'role': 'recruiter',
-        'company': 'ATS Labs'
+        'company': 'ATS Labs',
+        'password': password
     })
     assert status == 201, f'Recruiter registration failed: {status} {recruiter_reg}'
+    recruiter_id = recruiter_reg['recruiter_id']
 
-    status, candidate_login = call('POST', '/auth/login', {
+    status, candidate_login = call('POST', '/login', {
         'email': candidate_email,
-        'password': password
+        'password': password,
+        'role': 'candidate'
     })
     assert status == 200, f'Candidate login failed: {status} {candidate_login}'
 
-    status, recruiter_login = call('POST', '/auth/login', {
+    status, recruiter_login = call('POST', '/login', {
         'email': recruiter_email,
-        'password': password
+        'password': password,
+        'role': 'recruiter'
     })
     assert status == 200, f'Recruiter login failed: {status} {recruiter_login}'
 
@@ -89,20 +91,21 @@ def main():
     assert conn is not None, 'DB connection failed'
 
     cur = conn.cursor(dictionary=True)
-    cur.execute('SELECT user_id, role, candidate_id FROM Users WHERE email = %s', (candidate_email,))
+    cur.execute('SELECT candidate_id, password_hash FROM Candidates WHERE email = %s', (candidate_email,))
     user_candidate = cur.fetchone()
-    cur.execute('SELECT user_id, role, recruiter_id FROM Users WHERE email = %s', (recruiter_email,))
+    cur.execute('SELECT recruiter_id, password_hash FROM Recruiters WHERE email = %s', (recruiter_email,))
     user_recruiter = cur.fetchone()
     cur.execute('SELECT status FROM Applications WHERE application_id = %s', (application_id,))
     app_row = cur.fetchone()
 
-    assert user_candidate and user_candidate['role'] == 'candidate', 'Candidate user row missing'
-    assert user_recruiter and user_recruiter['role'] == 'recruiter', 'Recruiter user row missing'
+    assert user_candidate and user_candidate['candidate_id'] == candidate_id, 'Candidate row missing'
+    assert user_recruiter and user_recruiter['recruiter_id'] == recruiter_id, 'Recruiter row missing'
+    assert user_candidate['password_hash'], 'Candidate password hash missing'
+    assert user_recruiter['password_hash'], 'Recruiter password hash missing'
     assert app_row and app_row['status'] == 'Interviewing', f'Unexpected application status: {app_row}'
 
     cur.execute('DELETE FROM Applications WHERE application_id = %s', (application_id,))
     cur.execute('DELETE FROM Jobs WHERE job_id = %s', (job_id,))
-    cur.execute('DELETE FROM Users WHERE email IN (%s, %s)', (candidate_email, recruiter_email))
     cur.execute('DELETE FROM Candidates WHERE email = %s', (candidate_email,))
     cur.execute('DELETE FROM Recruiters WHERE email = %s', (recruiter_email,))
     conn.commit()

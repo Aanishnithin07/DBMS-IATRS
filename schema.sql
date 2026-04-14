@@ -2,6 +2,7 @@ CREATE TABLE Recruiters (
     recruiter_id INT PRIMARY KEY AUTO_INCREMENT,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
     company VARCHAR(150),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -24,6 +25,7 @@ CREATE TABLE Candidates (
     candidate_id INT PRIMARY KEY AUTO_INCREMENT,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(30),
     resume_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

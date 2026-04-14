@@ -37,17 +37,19 @@ def seed_data(cursor):
         cursor: MySQL cursor object
     """
     try:
+        default_password_hash = generate_password_hash('Password@123')
+
         # Insert 5 dummy Recruiters first (needed for foreign key in Jobs)
         recruiters_data = [
-            ('John Smith', 'john.smith@techcorp.com', 'TechCorp'),
-            ('Sarah Johnson', 'sarah.johnson@innovate.com', 'Innovate Solutions'),
-            ('Michael Chen', 'michael.chen@dataworks.com', 'DataWorks Inc'),
-            ('Emily Rodriguez', 'emily.rodriguez@cloudify.com', 'Cloudify'),
-            ('David Kim', 'david.kim@startupx.com', 'StartupX')
+            ('John Smith', 'john.smith@techcorp.com', 'TechCorp', default_password_hash),
+            ('Sarah Johnson', 'sarah.johnson@innovate.com', 'Innovate Solutions', default_password_hash),
+            ('Michael Chen', 'michael.chen@dataworks.com', 'DataWorks Inc', default_password_hash),
+            ('Emily Rodriguez', 'emily.rodriguez@cloudify.com', 'Cloudify', default_password_hash),
+            ('David Kim', 'david.kim@startupx.com', 'StartupX', default_password_hash)
         ]
         
         cursor.executemany(
-            "INSERT INTO Recruiters (full_name, email, company) VALUES (%s, %s, %s)",
+            "INSERT INTO Recruiters (full_name, email, company, password_hash) VALUES (%s, %s, %s, %s)",
             recruiters_data
         )
         print(f"Inserted {cursor.rowcount} recruiters")
@@ -69,21 +71,20 @@ def seed_data(cursor):
         
         # Insert 5 dummy Candidates
         candidates_data = [
-            ('Alice Williams', 'alice.williams@email.com', '+1-555-0101', 'https://resume.com/alice'),
-            ('Bob Martinez', 'bob.martinez@email.com', '+1-555-0102', 'https://resume.com/bob'),
-            ('Carol Davis', 'carol.davis@email.com', '+1-555-0103', 'https://resume.com/carol'),
-            ('Daniel Brown', 'daniel.brown@email.com', '+1-555-0104', 'https://resume.com/daniel'),
-            ('Eva Taylor', 'eva.taylor@email.com', '+1-555-0105', 'https://resume.com/eva')
+            ('Alice Williams', 'alice.williams@email.com', '+1-555-0101', 'https://resume.com/alice', default_password_hash),
+            ('Bob Martinez', 'bob.martinez@email.com', '+1-555-0102', 'https://resume.com/bob', default_password_hash),
+            ('Carol Davis', 'carol.davis@email.com', '+1-555-0103', 'https://resume.com/carol', default_password_hash),
+            ('Daniel Brown', 'daniel.brown@email.com', '+1-555-0104', 'https://resume.com/daniel', default_password_hash),
+            ('Eva Taylor', 'eva.taylor@email.com', '+1-555-0105', 'https://resume.com/eva', default_password_hash)
         ]
         
         cursor.executemany(
-            "INSERT INTO Candidates (full_name, email, phone, resume_url) VALUES (%s, %s, %s, %s)",
+            "INSERT INTO Candidates (full_name, email, phone, resume_url, password_hash) VALUES (%s, %s, %s, %s, %s)",
             candidates_data
         )
         print(f"Inserted {cursor.rowcount} candidates")
 
         # Insert login accounts for all seeded users
-        default_password_hash = generate_password_hash('Password@123')
         users_data = []
 
         for recruiter_id, recruiter in enumerate(recruiters_data, start=1):

@@ -30,6 +30,13 @@ def serialize_user(user):
         'recruiter_id': user['recruiter_id']
     }
 
+def safe_check_password(password_hash, password):
+    """Return False for invalid hash strings instead of raising errors."""
+    try:
+        return check_password_hash(password_hash, password)
+    except Exception:
+        return False
+
 def initialize_auth_table():
     """Create Users table if it does not exist to support login and signup."""
     connection = None
@@ -135,14 +142,15 @@ def register_user():
             resume_url = data.get('resume_url', None)
             cursor.execute(
                 """
-                INSERT INTO Candidates (full_name, email, phone, resume_url)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO Candidates (full_name, email, phone, resume_url, password_hash)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
                     full_name,
                     email,
                     phone.strip() if isinstance(phone, str) and phone.strip() else None,
-                    resume_url.strip() if isinstance(resume_url, str) and resume_url.strip() else None
+                    resume_url.strip() if isinstance(resume_url, str) and resume_url.strip() else None,
+                    generate_password_hash(password)
                 )
             )
             candidate_id = cursor.lastrowid
@@ -150,13 +158,14 @@ def register_user():
             company = data.get('company', None)
             cursor.execute(
                 """
-                INSERT INTO Recruiters (full_name, email, company)
-                VALUES (%s, %s, %s)
+                INSERT INTO Recruiters (full_name, email, company, password_hash)
+                VALUES (%s, %s, %s, %s)
                 """,
                 (
                     full_name,
                     email,
-                    company.strip() if isinstance(company, str) and company.strip() else None
+                    company.strip() if isinstance(company, str) and company.strip() else None,
+                    generate_password_hash(password)
                 )
             )
             recruiter_id = cursor.lastrowid
@@ -248,6 +257,232 @@ def login_user():
         return jsonify({
             'message': 'Login successful',
             'user': serialize_user(user)
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/register/candidate', methods=['POST'])
+def register_candidate():
+    """
+    Register a new candidate with a securely hashed password.
+
+    Expected JSON data:
+        - full_name: Candidate full name
+        - email: Candidate email
+        - phone: Candidate phone number
+        - password: Plain password to hash
+    """
+    connection = None
+    cursor = None
+
+    try:
+        data = request.get_json() or {}
+
+        required_fields = ['full_name', 'email', 'phone', 'password']
+        for field in required_fields:
+            if field not in data or not str(data[field]).strip():
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        full_name = data['full_name'].strip()
+        email = data['email'].strip().lower()
+        phone = data['phone'].strip()
+        password = str(data['password'])
+
+        if not is_valid_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        if len(password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT candidate_id FROM Candidates WHERE email = %s", (email,))
+        if cursor.fetchone():
+            return jsonify({'error': 'Email already exists for candidate'}), 409
+
+        sql = """
+            INSERT INTO Candidates (full_name, email, phone, resume_url, password_hash)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        values = (
+            full_name,
+            email,
+            phone,
+            data.get('resume_url', None),
+            generate_password_hash(password)
+        )
+
+        cursor.execute(sql, values)
+        connection.commit()
+
+        return jsonify({
+            'message': 'Candidate registered successfully',
+            'candidate_id': cursor.lastrowid
+        }), 201
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/register/recruiter', methods=['POST'])
+def register_recruiter():
+    """
+    Register a new recruiter with a securely hashed password.
+
+    Expected JSON data:
+        - full_name: Recruiter full name
+        - email: Recruiter email
+        - company: Recruiter company name
+        - password: Plain password to hash
+    """
+    connection = None
+    cursor = None
+
+    try:
+        data = request.get_json() or {}
+
+        required_fields = ['full_name', 'email', 'company', 'password']
+        for field in required_fields:
+            if field not in data or not str(data[field]).strip():
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        full_name = data['full_name'].strip()
+        email = data['email'].strip().lower()
+        company = data['company'].strip()
+        password = str(data['password'])
+
+        if not is_valid_email(email):
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        if len(password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT recruiter_id FROM Recruiters WHERE email = %s", (email,))
+        if cursor.fetchone():
+            return jsonify({'error': 'Email already exists for recruiter'}), 409
+
+        sql = """
+            INSERT INTO Recruiters (full_name, email, company, password_hash)
+            VALUES (%s, %s, %s, %s)
+        """
+        values = (
+            full_name,
+            email,
+            company,
+            generate_password_hash(password)
+        )
+
+        cursor.execute(sql, values)
+        connection.commit()
+
+        return jsonify({
+            'message': 'Recruiter registered successfully',
+            'recruiter_id': cursor.lastrowid
+        }), 201
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/login', methods=['POST'])
+def login_with_role():
+    """
+    Login endpoint that authenticates against Candidates or Recruiters by role.
+
+    Expected JSON data:
+        - email: User email
+        - password: User password
+        - role: candidate or recruiter
+    """
+    connection = None
+    cursor = None
+
+    try:
+        data = request.get_json() or {}
+        email = str(data.get('email', '')).strip().lower()
+        password = str(data.get('password', ''))
+        role = str(data.get('role', '')).strip().lower()
+
+        if not email or not password or not role:
+            return jsonify({'error': 'Email, password, and role are required'}), 400
+
+        if role not in ALLOWED_ROLES:
+            return jsonify({'error': 'Role must be candidate or recruiter'}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        if role == 'candidate':
+            cursor.execute(
+                """
+                SELECT candidate_id AS user_id, full_name, email, password_hash
+                FROM Candidates
+                WHERE email = %s
+                """,
+                (email,)
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT recruiter_id AS user_id, full_name, email, password_hash
+                FROM Recruiters
+                WHERE email = %s
+                """,
+                (email,)
+            )
+
+        user = cursor.fetchone()
+
+        if user is None or not safe_check_password(user['password_hash'], password):
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        response_user = {
+            'id': user['user_id'],
+            'full_name': user['full_name'],
+            'email': user['email'],
+            'role': role
+        }
+
+        if role == 'candidate':
+            response_user['candidate_id'] = user['user_id']
+        else:
+            response_user['recruiter_id'] = user['user_id']
+
+        return jsonify({
+            'message': 'Login successful',
+            'user': response_user
         }), 200
 
     except Exception as e:

@@ -66,13 +66,22 @@
 
         function ensureCandidateSession() {
             try {
-                currentUser = JSON.parse(localStorage.getItem('ats_current_user'));
+                currentUser = JSON.parse(localStorage.getItem('user'));
             } catch (error) {
                 currentUser = null;
             }
 
-            if (!currentUser || currentUser.role !== 'candidate' || !currentUser.candidate_id) {
-                window.location.href = 'auth.html?role=candidate';
+            if (!currentUser || currentUser.role !== 'candidate') {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            if (!currentUser.candidate_id && currentUser.id) {
+                currentUser.candidate_id = currentUser.id;
+            }
+
+            if (!currentUser.candidate_id) {
+                window.location.href = 'login.html';
                 return false;
             }
 
@@ -82,8 +91,8 @@
         }
 
         function logout() {
-            localStorage.removeItem('ats_current_user');
-            window.location.href = 'auth.html';
+            localStorage.clear();
+            window.location.href = 'login.html';
         }
 
         // Fetch and display jobs
@@ -212,7 +221,7 @@
         async function applyForJob(jobId, jobTitle, buttonElement) {
             if (!currentUser || !currentUser.candidate_id) {
                 showNotification('Please sign in as a candidate to apply.', 'error');
-                window.location.href = 'auth.html?role=candidate';
+                window.location.href = 'login.html';
                 return;
             }
 

@@ -259,13 +259,22 @@
 
         function ensureRecruiterSession() {
             try {
-                currentUser = JSON.parse(localStorage.getItem('ats_current_user'));
+                currentUser = JSON.parse(localStorage.getItem('user'));
             } catch (error) {
                 currentUser = null;
             }
 
-            if (!currentUser || currentUser.role !== 'recruiter' || !currentUser.recruiter_id) {
-                window.location.href = 'auth.html?role=recruiter';
+            if (!currentUser || currentUser.role !== 'recruiter') {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            if (!currentUser.recruiter_id && currentUser.id) {
+                currentUser.recruiter_id = currentUser.id;
+            }
+
+            if (!currentUser.recruiter_id) {
+                window.location.href = 'login.html';
                 return false;
             }
 
@@ -275,8 +284,8 @@
         }
 
         function logout() {
-            localStorage.removeItem('ats_current_user');
-            window.location.href = 'auth.html';
+            localStorage.clear();
+            window.location.href = 'login.html';
         }
 
         function showPostJobModal() {
@@ -299,7 +308,7 @@
 
             if (!currentUser || !currentUser.recruiter_id) {
                 showJobPostMessage('Please sign in as a recruiter to post jobs.', 'error');
-                window.location.href = 'auth.html?role=recruiter';
+                window.location.href = 'login.html';
                 return;
             }
 
