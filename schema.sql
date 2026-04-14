@@ -29,6 +29,25 @@ CREATE TABLE Candidates (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+CREATE TABLE Users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role ENUM('candidate', 'recruiter') NOT NULL,
+    candidate_id INT UNIQUE,
+    recruiter_id INT UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_users_candidate
+        FOREIGN KEY (candidate_id)
+        REFERENCES Candidates(candidate_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_users_recruiter
+        FOREIGN KEY (recruiter_id)
+        REFERENCES Recruiters(recruiter_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE Applications (
     application_id INT PRIMARY KEY AUTO_INCREMENT,
     job_id INT NOT NULL,

@@ -1,4 +1,5 @@
 from db_connect import get_db_connection
+from werkzeug.security import generate_password_hash
 import os
 
 def execute_schema_file(cursor, schema_file_path):
@@ -80,6 +81,43 @@ def seed_data(cursor):
             candidates_data
         )
         print(f"Inserted {cursor.rowcount} candidates")
+
+        # Insert login accounts for all seeded users
+        default_password_hash = generate_password_hash('Password@123')
+        users_data = []
+
+        for recruiter_id, recruiter in enumerate(recruiters_data, start=1):
+            users_data.append(
+                (
+                    recruiter[0],
+                    recruiter[1],
+                    default_password_hash,
+                    'recruiter',
+                    None,
+                    recruiter_id
+                )
+            )
+
+        for candidate_id, candidate in enumerate(candidates_data, start=1):
+            users_data.append(
+                (
+                    candidate[0],
+                    candidate[1],
+                    default_password_hash,
+                    'candidate',
+                    candidate_id,
+                    None
+                )
+            )
+
+        cursor.executemany(
+            """
+            INSERT INTO Users (full_name, email, password_hash, role, candidate_id, recruiter_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            users_data
+        )
+        print(f"Inserted {cursor.rowcount} user accounts")
         
     except Exception as e:
         print(f"Error seeding data: {e}")
@@ -114,6 +152,7 @@ def main():
         
         print("\n" + "="*50)
         print("MySQL Database ats_db initialized successfully!")
+        print("Default password for all seeded login accounts: Password@123")
         print("="*50)
         
     except Exception as e:

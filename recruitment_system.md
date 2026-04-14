@@ -1,8 +1,21 @@
 erDiagram
+    USERS ||--o| CANDIDATES : maps_to
+    USERS ||--o| RECRUITERS : maps_to
     RECRUITERS ||--o{ JOBS : posts
     JOBS ||--o{ APPLICATIONS : receives
     CANDIDATES ||--o{ APPLICATIONS : submits
     APPLICATIONS ||--o{ INTERVIEWS : has
+
+    USERS {
+        int user_id PK
+        string full_name
+        string email
+        string password_hash
+        string role
+        int candidate_id FK
+        int recruiter_id FK
+        timestamp created_at
+    }
 
     RECRUITERS {
         int recruiter_id PK

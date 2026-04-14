@@ -46,8 +46,8 @@
                         <span class="text-sm font-semibold">HR</span>
                     </div>
                     <div class="ml-3">
-                        <p class="text-sm font-medium">HR Manager</p>
-                        <p class="text-xs text-blue-300">Recruiter</p>
+                        <p id="recruiterName" class="text-sm font-medium">Recruiter</p>
+                        <p id="recruiterEmail" class="text-xs text-blue-300"></p>
                     </div>
                 </div>
             </div>
@@ -68,6 +68,13 @@
                         class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
                     >
                         Post New Job
+                    </button>
+                    <button
+                        id="logoutBtn"
+                        type="button"
+                        class="inline-flex items-center bg-slate-700 hover:bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+                    >
+                        Logout
                     </button>
                 </div>
             </header>
@@ -228,10 +235,16 @@
     <script>
         // API Base URL
         const API_URL = 'http://127.0.0.1:5001';
+        let currentUser = null;
 
         // Load applications when page loads
         document.addEventListener('DOMContentLoaded', function() {
+            if (!ensureRecruiterSession()) {
+                return;
+            }
+
             document.getElementById('postJobButton').addEventListener('click', showPostJobModal);
+            document.getElementById('logoutBtn').addEventListener('click', logout);
             document.getElementById('closeJobModalButton').addEventListener('click', hidePostJobModal);
             document.getElementById('cancelJobModalButton').addEventListener('click', hidePostJobModal);
             document.getElementById('postJobForm').addEventListener('submit', handlePostJobSubmit);
@@ -243,6 +256,28 @@
 
             loadApplications();
         });
+
+        function ensureRecruiterSession() {
+            try {
+                currentUser = JSON.parse(localStorage.getItem('ats_current_user'));
+            } catch (error) {
+                currentUser = null;
+            }
+
+            if (!currentUser || currentUser.role !== 'recruiter' || !currentUser.recruiter_id) {
+                window.location.href = 'auth.html?role=recruiter';
+                return false;
+            }
+
+            document.getElementById('recruiterName').textContent = currentUser.full_name || 'Recruiter';
+            document.getElementById('recruiterEmail').textContent = currentUser.email || '';
+            return true;
+        }
+
+        function logout() {
+            localStorage.removeItem('ats_current_user');
+            window.location.href = 'auth.html';
+        }
 
         function showPostJobModal() {
             document.getElementById('postJobModal').classList.remove('hidden');
@@ -262,13 +297,19 @@
         async function handlePostJobSubmit(event) {
             event.preventDefault();
 
+            if (!currentUser || !currentUser.recruiter_id) {
+                showJobPostMessage('Please sign in as a recruiter to post jobs.', 'error');
+                window.location.href = 'auth.html?role=recruiter';
+                return;
+            }
+
             const submitButton = document.getElementById('submitJobButton');
             const form = document.getElementById('postJobForm');
             const payload = {
                 title: document.getElementById('jobTitle').value.trim(),
                 department: document.getElementById('jobDepartment').value.trim(),
                 location: document.getElementById('jobLocation').value.trim(),
-                recruiter_id: 1
+                recruiter_id: currentUser.recruiter_id
             };
 
             submitButton.disabled = true;
