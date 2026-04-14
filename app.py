@@ -203,6 +203,61 @@ def apply_for_job():
         if connection and connection.is_connected():
             connection.close()
 
+@app.route('/applications/<int:app_id>/status', methods=['PUT'])
+def update_application_status(app_id):
+    """
+    Update the status of an application.
+
+    Expected JSON data:
+        - status: New application status
+
+    Args:
+        app_id: Application ID
+
+    Returns:
+        JSON success message or error
+    """
+    connection = None
+    cursor = None
+
+    try:
+        data = request.get_json()
+
+        if not data or 'status' not in data:
+            return jsonify({'error': 'Missing required field: status'}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor()
+
+        sql = """
+            UPDATE Applications
+            SET status = %s
+            WHERE application_id = %s
+        """
+        values = (data['status'], app_id)
+
+        cursor.execute(sql, values)
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Application not found'}), 404
+
+        return jsonify({'message': 'Status updated successfully'}), 200
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
 @app.route('/applications', methods=['GET'])
 def get_applications():
     """
