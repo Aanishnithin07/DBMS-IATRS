@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
+    <div id="notificationContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
     <!-- Header -->
     <header class="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
         <div class="container mx-auto px-6 py-8">
@@ -126,7 +128,7 @@
                 </div>
                 
                 <button 
-                    onclick="applyForJob(${job.job_id}, '${job.title}')"
+                    onclick='applyForJob(${job.job_id}, ${JSON.stringify(job.title)}, this)'
                     class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 ${job.status !== 'Open' ? 'opacity-50 cursor-not-allowed' : ''}"
                     ${job.status !== 'Open' ? 'disabled' : ''}
                 >
@@ -151,9 +153,58 @@
             }
         }
 
+        function showNotification(message, type = 'success') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            const style = type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-red-50 border-red-200 text-red-800';
+
+            notification.className = `max-w-sm px-4 py-3 rounded-lg border shadow-lg transition-opacity duration-300 ${style}`;
+            notification.textContent = message;
+            container.appendChild(notification);
+
+            setTimeout(() => {
+                notification.classList.add('opacity-0');
+            }, 2500);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
         // Apply for job function
-        function applyForJob(jobId, jobTitle) {
-            alert(`Application Submitted for: ${jobTitle}!\n\nJob ID: ${jobId}\n\nThank you for your interest!`);
+        async function applyForJob(jobId, jobTitle, buttonElement) {
+            const originalText = buttonElement.textContent.trim();
+            buttonElement.disabled = true;
+            buttonElement.textContent = 'Applying...';
+
+            try {
+                const response = await fetch(`${API_URL}/apply`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_id: jobId,
+                        candidate_id: 1
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to submit application');
+                }
+
+                buttonElement.textContent = 'Applied';
+                buttonElement.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                buttonElement.classList.add('bg-green-600', 'cursor-not-allowed');
+                showNotification(`Application submitted for ${jobTitle}!`, 'success');
+            } catch (error) {
+                console.error('Error applying for job:', error);
+                buttonElement.disabled = false;
+                buttonElement.textContent = originalText;
+                showNotification('Could not submit application. Please try again.', 'error');
+            }
         }
     </script>
 </body>
