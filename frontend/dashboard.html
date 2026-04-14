@@ -82,6 +82,7 @@
             <!-- Content -->
             <div class="p-8">
                 <div id="jobPostMessage" class="hidden mb-6 px-4 py-3 rounded-lg border"></div>
+                <div id="interviewMessage" class="hidden mb-6 px-4 py-3 rounded-lg border"></div>
 
                 <!-- Stats Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -180,6 +181,9 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Match Score
                                     </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Action
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="applicationsTableBody" class="bg-white divide-y divide-gray-200">
@@ -191,6 +195,43 @@
                     <!-- Empty State -->
                     <div id="emptyState" class="hidden text-center py-12">
                         <p class="text-gray-500">No applications found.</p>
+                    </div>
+                </div>
+
+                <!-- Scheduled Interviews Section -->
+                <div class="bg-white rounded-lg shadow overflow-hidden mt-8">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-800">Scheduled Interviews</h3>
+                    </div>
+
+                    <div id="interviewsLoadingState" class="text-center py-10">
+                        <div class="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                        <p class="mt-3 text-gray-600">Loading scheduled interviews...</p>
+                    </div>
+
+                    <div id="interviewsErrorState" class="hidden text-center py-10">
+                        <div class="text-red-600 text-lg mb-2">Error Loading Scheduled Interviews</div>
+                        <p class="text-gray-600">Please check backend and database view availability.</p>
+                    </div>
+
+                    <div id="interviewsEmptyState" class="hidden text-center py-10">
+                        <p class="text-gray-500">No scheduled interviews for your jobs.</p>
+                    </div>
+
+                    <div id="interviewsTableContainer" class="hidden overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Interview ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scheduled At</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduledInterviewsTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -229,10 +270,45 @@
         </div>
     </div>
 
+    <!-- Schedule Interview Modal -->
+    <div id="scheduleInterviewModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-lg rounded-xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                <h3 class="text-lg font-semibold text-gray-800">Schedule Interview</h3>
+                <button id="closeInterviewModalButton" type="button" class="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
+            </div>
+
+            <form id="scheduleInterviewForm" class="px-6 py-5 space-y-4">
+                <p id="scheduleInterviewContext" class="text-sm text-gray-600"></p>
+
+                <div>
+                    <label for="interviewDateTime" class="block text-sm font-medium text-gray-700 mb-1">Interview Date &amp; Time</label>
+                    <input id="interviewDateTime" type="datetime-local" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <div>
+                    <label for="interviewType" class="block text-sm font-medium text-gray-700 mb-1">Interview Type</label>
+                    <select id="interviewType" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="Video">Video</option>
+                        <option value="Phone">Phone</option>
+                        <option value="Onsite">Onsite</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button id="cancelInterviewModalButton" type="button" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button id="submitInterviewButton" type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Schedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // API Base URL
         const API_URL = 'http://127.0.0.1:5001';
         let currentUser = null;
+        let applicationsById = {};
+        let selectedApplicationId = null;
 
         // Load applications when page loads
         document.addEventListener('DOMContentLoaded', function() {
@@ -245,13 +321,21 @@
             document.getElementById('closeJobModalButton').addEventListener('click', hidePostJobModal);
             document.getElementById('cancelJobModalButton').addEventListener('click', hidePostJobModal);
             document.getElementById('postJobForm').addEventListener('submit', handlePostJobSubmit);
+            document.getElementById('closeInterviewModalButton').addEventListener('click', hideScheduleInterviewModal);
+            document.getElementById('cancelInterviewModalButton').addEventListener('click', hideScheduleInterviewModal);
+            document.getElementById('scheduleInterviewForm').addEventListener('submit', handleScheduleInterviewSubmit);
             document.getElementById('postJobModal').addEventListener('click', function(event) {
                 if (event.target.id === 'postJobModal') {
                     hidePostJobModal();
                 }
             });
+            document.getElementById('scheduleInterviewModal').addEventListener('click', function(event) {
+                if (event.target.id === 'scheduleInterviewModal') {
+                    hideScheduleInterviewModal();
+                }
+            });
 
-            loadApplications();
+            loadDashboardData();
         });
 
         function ensureRecruiterSession() {
@@ -300,6 +384,17 @@
             messageElement.className = `mb-6 px-4 py-3 rounded-lg border ${type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`;
         }
 
+        function showInterviewMessage(message, type = 'success') {
+            const messageElement = document.getElementById('interviewMessage');
+
+            messageElement.textContent = message;
+            messageElement.className = `mb-6 px-4 py-3 rounded-lg border ${type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`;
+        }
+
+        async function loadDashboardData() {
+            await Promise.all([loadApplications(), loadScheduledInterviews()]);
+        }
+
         async function handlePostJobSubmit(event) {
             event.preventDefault();
 
@@ -338,7 +433,7 @@
                 form.reset();
                 hidePostJobModal();
                 showJobPostMessage('Job posted successfully!', 'success');
-                window.location.reload();
+                await loadDashboardData();
             } catch (error) {
                 console.error('Error posting job:', error);
                 showJobPostMessage(error.message || 'Could not post job. Please try again.', 'error');
@@ -364,6 +459,10 @@
                 }
 
                 const applications = await response.json();
+                applicationsById = {};
+                applications.forEach(app => {
+                    applicationsById[app.application_id] = app;
+                });
                 
                 // Hide loading state
                 loadingState.classList.add('hidden');
@@ -453,9 +552,200 @@
                         <span class="text-sm font-semibold ${getScoreTextColor(matchScore)}">${matchScore}%</span>
                     </div>
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    ${app.status === 'Screening'
+                        ? `<button onclick="showScheduleInterviewModal(${app.application_id})" class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md">Schedule Interview</button>`
+                        : '<span class="text-xs text-gray-400">N/A</span>'
+                    }
+                </td>
             `;
             
             return row;
+        }
+
+        function showScheduleInterviewModal(applicationId) {
+            selectedApplicationId = applicationId;
+            const app = applicationsById[applicationId];
+
+            const contextElement = document.getElementById('scheduleInterviewContext');
+            if (app) {
+                contextElement.textContent = `Candidate: ${app.candidate_name} | Job: ${app.job_title}`;
+            } else {
+                contextElement.textContent = `Application ID: ${applicationId}`;
+            }
+
+            document.getElementById('interviewDateTime').value = '';
+            document.getElementById('interviewType').value = 'Video';
+            document.getElementById('scheduleInterviewModal').classList.remove('hidden');
+        }
+
+        function hideScheduleInterviewModal() {
+            selectedApplicationId = null;
+            document.getElementById('scheduleInterviewModal').classList.add('hidden');
+        }
+
+        async function handleScheduleInterviewSubmit(event) {
+            event.preventDefault();
+
+            if (!selectedApplicationId) {
+                showInterviewMessage('No application selected for interview scheduling.', 'error');
+                return;
+            }
+
+            const submitButton = document.getElementById('submitInterviewButton');
+            const dateTimeRaw = document.getElementById('interviewDateTime').value;
+            const interviewType = document.getElementById('interviewType').value;
+
+            if (!dateTimeRaw) {
+                showInterviewMessage('Please select interview date and time.', 'error');
+                return;
+            }
+
+            const scheduledAt = `${dateTimeRaw.replace('T', ' ')}:00`;
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Scheduling...';
+
+            try {
+                const response = await fetch(`${API_URL}/interviews`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        application_id: selectedApplicationId,
+                        scheduled_at: scheduledAt,
+                        interview_type: interviewType
+                    })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to schedule interview');
+                }
+
+                hideScheduleInterviewModal();
+                showInterviewMessage('Interview scheduled successfully.', 'success');
+                await loadDashboardData();
+            } catch (error) {
+                console.error('Error scheduling interview:', error);
+                showInterviewMessage(error.message || 'Could not schedule interview.', 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Schedule';
+            }
+        }
+
+        async function loadScheduledInterviews() {
+            const loadingState = document.getElementById('interviewsLoadingState');
+            const errorState = document.getElementById('interviewsErrorState');
+            const tableContainer = document.getElementById('interviewsTableContainer');
+            const emptyState = document.getElementById('interviewsEmptyState');
+            const tableBody = document.getElementById('scheduledInterviewsTableBody');
+
+            loadingState.classList.remove('hidden');
+            errorState.classList.add('hidden');
+            tableContainer.classList.add('hidden');
+            emptyState.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_URL}/interviews/scheduled/recruiter/${currentUser.recruiter_id}`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch scheduled interviews');
+                }
+
+                const interviews = await response.json();
+                loadingState.classList.add('hidden');
+
+                if (!interviews.length) {
+                    emptyState.classList.remove('hidden');
+                    return;
+                }
+
+                tableContainer.classList.remove('hidden');
+                tableBody.innerHTML = '';
+                interviews.forEach(interview => {
+                    tableBody.appendChild(createScheduledInterviewRow(interview));
+                });
+            } catch (error) {
+                console.error('Error loading scheduled interviews:', error);
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+            }
+        }
+
+        function createScheduledInterviewRow(interview) {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-50 transition-colors';
+
+            const statusOptions = ['Scheduled', 'Completed', 'No-Show', 'Cancelled']
+                .map(status => `<option value="${status}" ${interview.status === status ? 'selected' : ''}>${status}</option>`)
+                .join('');
+
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">#${interview.interview_id}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">${interview.candidate_name}</div>
+                    <div class="text-xs text-gray-500">${interview.candidate_email}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${interview.job_title}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${formatDateTime(interview.scheduled_at)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${interview.interview_type}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <select
+                        onchange="updateInterviewStatus(${interview.interview_id}, this.value)"
+                        class="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        ${statusOptions}
+                    </select>
+                </td>
+            `;
+
+            return row;
+        }
+
+        async function updateInterviewStatus(interviewId, newStatus) {
+            try {
+                const response = await fetch(`${API_URL}/interviews/${interviewId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to update interview status');
+                }
+
+                if (newStatus === 'Completed') {
+                    showInterviewMessage('Interview marked Completed. SQL trigger should update the linked application status.', 'success');
+                } else {
+                    showInterviewMessage('Interview status updated successfully.', 'success');
+                }
+
+                await loadDashboardData();
+            } catch (error) {
+                console.error('Error updating interview status:', error);
+                showInterviewMessage(error.message || 'Could not update interview status.', 'error');
+            }
+        }
+
+        function formatDateTime(dateTimeValue) {
+            const date = new Date(dateTimeValue);
+            if (isNaN(date.getTime())) {
+                return dateTimeValue;
+            }
+
+            return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
 
         // Update application status
@@ -473,7 +763,7 @@
                     throw new Error('Failed to update application status');
                 }
 
-                await loadApplications();
+                await loadDashboardData();
             } catch (error) {
                 console.error('Error updating application status:', error);
             }

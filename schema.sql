@@ -78,3 +78,17 @@ CREATE TABLE Interviews (
         REFERENCES Applications(application_id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+CREATE OR REPLACE VIEW Scheduled_Interviews AS
+SELECT interview_id, application_id, scheduled_at, interview_type, status
+FROM Interviews
+WHERE status = 'Scheduled';
+
+DROP TRIGGER IF EXISTS trg_update_application_status;
+CREATE TRIGGER trg_update_application_status
+AFTER UPDATE ON Interviews
+FOR EACH ROW
+UPDATE Applications
+SET status = 'Interviewing'
+WHERE NEW.status = 'Completed'
+    AND application_id = NEW.application_id;

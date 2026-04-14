@@ -4,6 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from mysql.connector import IntegrityError
 import re
 import os
+from datetime import datetime
 from db_connect import get_db_connection
 
 # Initialize Flask app
@@ -14,6 +15,8 @@ CORS(app)
 
 ALLOWED_ROLES = {'candidate', 'recruiter'}
 ALLOWED_APPLICATION_STATUSES = {'Applied', 'Screening', 'Interviewing', 'Rejected', 'Hired'}
+ALLOWED_INTERVIEW_TYPES = {'Phone', 'Video', 'Onsite'}
+ALLOWED_INTERVIEW_STATUSES = {'Scheduled', 'Completed', 'No-Show', 'Cancelled'}
 EMAIL_REGEX = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
 def is_valid_email(email):
@@ -84,7 +87,65 @@ def initialize_auth_table():
         if connection and connection.is_connected():
             connection.close()
 
+def initialize_interview_artifacts():
+    """Create interview view and trigger required for end-to-end workflow."""
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return False
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            CREATE OR REPLACE VIEW Scheduled_Interviews AS
+            SELECT interview_id, application_id, scheduled_at, interview_type, status
+            FROM Interviews
+            WHERE status = 'Scheduled'
+            """
+        )
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM information_schema.triggers
+            WHERE trigger_schema = DATABASE()
+              AND trigger_name = 'trg_update_application_status'
+            """
+        )
+        trigger_exists = cursor.fetchone()['count'] > 0
+
+        if not trigger_exists:
+            cursor.execute(
+                """
+                CREATE TRIGGER trg_update_application_status
+                AFTER UPDATE ON Interviews
+                FOR EACH ROW
+                UPDATE Applications
+                SET status = 'Interviewing'
+                WHERE NEW.status = 'Completed'
+                  AND application_id = NEW.application_id
+                """
+            )
+
+        connection.commit()
+        return True
+
+    except Exception as e:
+        print(f"Error initializing interview artifacts: {e}")
+        return False
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
 initialize_auth_table()
+initialize_interview_artifacts()
 
 @app.route('/auth/register', methods=['POST'])
 def register_user():
@@ -810,7 +871,14 @@ def update_application_status(app_id):
         if connection is None:
             return jsonify({'error': 'Database connection failed'}), 500
 
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT application_id FROM Applications WHERE application_id = %s",
+            (app_id,)
+        )
+        if cursor.fetchone() is None:
+            return jsonify({'error': 'Application not found'}), 404
 
         sql = """
             UPDATE Applications
@@ -822,14 +890,217 @@ def update_application_status(app_id):
         cursor.execute(sql, values)
         connection.commit()
 
-        if cursor.rowcount == 0:
-            return jsonify({'error': 'Application not found'}), 404
-
         return jsonify({'message': 'Status updated successfully'}), 200
 
     except Exception as e:
         if connection:
             connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/interviews', methods=['POST'])
+def schedule_interview():
+    """
+    Schedule a new interview for an application.
+
+    Expected JSON data:
+        - application_id: Application ID
+        - scheduled_at: Datetime string
+        - interview_type: Phone, Video, or Onsite
+    """
+    connection = None
+    cursor = None
+
+    try:
+        data = request.get_json() or {}
+
+        required_fields = ['application_id', 'scheduled_at', 'interview_type']
+        for field in required_fields:
+            if field not in data or str(data[field]).strip() == '':
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        application_id = data['application_id']
+        interview_type = str(data['interview_type']).strip()
+        raw_scheduled_at = str(data['scheduled_at']).strip()
+
+        if interview_type not in ALLOWED_INTERVIEW_TYPES:
+            return jsonify({'error': 'Invalid interview_type value'}), 400
+
+        try:
+            parsed_dt = datetime.fromisoformat(raw_scheduled_at.replace(' ', 'T'))
+            scheduled_at_sql = parsed_dt.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return jsonify({'error': 'Invalid scheduled_at format'}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT a.application_id, a.status
+            FROM Applications a
+            WHERE a.application_id = %s
+            """,
+            (application_id,)
+        )
+        application = cursor.fetchone()
+
+        if application is None:
+            return jsonify({'error': 'Application not found'}), 404
+
+        if application['status'] in {'Rejected', 'Hired'}:
+            return jsonify({'error': 'Cannot schedule interview for closed application'}), 400
+
+        cursor.execute(
+            """
+            INSERT INTO Interviews (application_id, scheduled_at, interview_type)
+            VALUES (%s, %s, %s)
+            """,
+            (application_id, scheduled_at_sql, interview_type)
+        )
+        connection.commit()
+
+        return jsonify({
+            'message': 'Interview scheduled successfully',
+            'interview_id': cursor.lastrowid
+        }), 201
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/interviews/<int:interview_id>/status', methods=['PUT'])
+def update_interview_status(interview_id):
+    """
+    Update status for an interview.
+
+    Expected JSON data:
+        - status: Scheduled, Completed, No-Show, Cancelled
+    """
+    connection = None
+    cursor = None
+
+    try:
+        data = request.get_json() or {}
+        new_status = str(data.get('status', '')).strip()
+
+        if new_status not in ALLOWED_INTERVIEW_STATUSES:
+            return jsonify({'error': 'Invalid interview status value'}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT interview_id FROM Interviews WHERE interview_id = %s",
+            (interview_id,)
+        )
+        if cursor.fetchone() is None:
+            return jsonify({'error': 'Interview not found'}), 404
+
+        cursor.execute(
+            """
+            UPDATE Interviews
+            SET status = %s
+            WHERE interview_id = %s
+            """,
+            (new_status, interview_id)
+        )
+        connection.commit()
+
+        return jsonify({'message': 'Interview status updated successfully'}), 200
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/interviews/scheduled/recruiter/<int:recruiter_id>', methods=['GET'])
+def get_scheduled_interviews_for_recruiter(recruiter_id):
+    """
+    Fetch scheduled interviews for a recruiter's jobs.
+
+    This query targets the Scheduled_Interviews SQL view. If the view is
+    unavailable, it falls back to the Interviews table with status filtering.
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        view_sql = """
+            SELECT
+                si.interview_id,
+                i.application_id,
+                c.full_name AS candidate_name,
+                c.email AS candidate_email,
+                j.title AS job_title,
+                si.scheduled_at,
+                si.interview_type,
+                i.status
+            FROM Scheduled_Interviews si
+            INNER JOIN Interviews i ON si.interview_id = i.interview_id
+            INNER JOIN Applications a ON i.application_id = a.application_id
+            INNER JOIN Candidates c ON a.candidate_id = c.candidate_id
+            INNER JOIN Jobs j ON a.job_id = j.job_id
+            WHERE j.recruiter_id = %s
+            ORDER BY si.scheduled_at ASC
+        """
+
+        fallback_sql = """
+            SELECT
+                i.interview_id,
+                i.application_id,
+                c.full_name AS candidate_name,
+                c.email AS candidate_email,
+                j.title AS job_title,
+                i.scheduled_at,
+                i.interview_type,
+                i.status
+            FROM Interviews i
+            INNER JOIN Applications a ON i.application_id = a.application_id
+            INNER JOIN Candidates c ON a.candidate_id = c.candidate_id
+            INNER JOIN Jobs j ON a.job_id = j.job_id
+            WHERE j.recruiter_id = %s AND i.status = 'Scheduled'
+            ORDER BY i.scheduled_at ASC
+        """
+
+        try:
+            cursor.execute(view_sql, (recruiter_id,))
+        except Exception:
+            cursor.execute(fallback_sql, (recruiter_id,))
+
+        interviews = cursor.fetchall()
+        return jsonify(interviews), 200
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
     finally:
@@ -1043,4 +1314,5 @@ def get_applications():
 
 if __name__ == '__main__':
     initialize_auth_table()
+    initialize_interview_artifacts()
     app.run(debug=True, port=5001)
