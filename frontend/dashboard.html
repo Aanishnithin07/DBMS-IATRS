@@ -162,6 +162,9 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Match Score
                                     </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="applicationsTableBody" class="bg-white divide-y divide-gray-200">
@@ -240,6 +243,10 @@
         function createApplicationRow(app) {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors';
+
+            const statusOptions = ['Applied', 'Screening', 'Interviewing', 'Rejected', 'Hired']
+                .map(status => `<option value="${status}" ${app.status === status ? 'selected' : ''}>${status}</option>`)
+                .join('');
             
             // Generate a match score (between 60-98) for demonstration
             const matchScore = Math.floor(Math.random() * 38) + 60;
@@ -286,9 +293,38 @@
                         <span class="text-sm font-semibold ${getScoreTextColor(matchScore)}">${matchScore}%</span>
                     </div>
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <select
+                        onchange="updateStatus(${app.application_id}, this.value)"
+                        class="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        ${statusOptions}
+                    </select>
+                </td>
             `;
             
             return row;
+        }
+
+        // Update application status
+        async function updateStatus(appId, newStatus) {
+            try {
+                const response = await fetch(`${API_URL}/applications/${appId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update application status');
+                }
+
+                await loadApplications();
+            } catch (error) {
+                console.error('Error updating application status:', error);
+            }
         }
 
         // Get status styling
