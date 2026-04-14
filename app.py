@@ -748,6 +748,57 @@ def update_application_status(app_id):
         if connection and connection.is_connected():
             connection.close()
 
+@app.route('/applications/candidate/<int:candidate_id>', methods=['GET'])
+def get_candidate_applications(candidate_id):
+    """
+    Fetch all applications for a specific candidate with job details.
+
+    Args:
+        candidate_id: Candidate ID
+
+    Returns:
+        JSON list of candidate applications
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        sql = """
+            SELECT
+                a.application_id,
+                a.candidate_id,
+                a.status,
+                a.created_at,
+                j.job_id,
+                j.title AS job_title,
+                j.department,
+                j.location
+            FROM Applications a
+            INNER JOIN Jobs j ON a.job_id = j.job_id
+            WHERE a.candidate_id = %s
+            ORDER BY a.created_at DESC
+        """
+
+        cursor.execute(sql, (candidate_id,))
+        applications = cursor.fetchall()
+
+        return jsonify(applications), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
 @app.route('/applications', methods=['GET'])
 def get_applications():
     """

@@ -82,6 +82,10 @@ def main():
     assert status == 201, f'Apply failed: {status} {apply_resp}'
     application_id = apply_resp['application_id']
 
+    status, candidate_apps = call('GET', f'/applications/candidate/{candidate_id}')
+    assert status == 200, f'Candidate applications endpoint failed: {status} {candidate_apps}'
+    assert any(app['application_id'] == application_id for app in candidate_apps), 'Application missing from candidate applications feed'
+
     status, upd_resp = call('PUT', f'/applications/{application_id}/status', {
         'status': 'Interviewing'
     })
