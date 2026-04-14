@@ -41,6 +41,23 @@ def safe_check_password(password_hash, password):
     except Exception:
         return False
 
+def format_integrity_error(error):
+    """Return user-friendly messages for common database integrity violations."""
+    message = str(error).lower()
+
+    if ('duplicate entry' in message or 'unique' in message) and (
+        'applications' in message or 'job_id' in message and 'candidate_id' in message
+    ):
+        return 'You have already applied for this job'
+
+    if 'duplicate entry' in message and 'email' in message:
+        return 'Email already exists'
+
+    if 'foreign key' in message:
+        return 'Referenced record was not found. Please refresh and try again'
+
+    return 'Database integrity constraint failed'
+
 def initialize_auth_table():
     """Create Users table if it does not exist to support login and signup."""
     connection = None
@@ -392,6 +409,11 @@ def register_candidate():
             'candidate_id': cursor.lastrowid
         }), 201
 
+    except IntegrityError as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': format_integrity_error(e)}), 409
+
     except Exception as e:
         if connection:
             connection.rollback()
@@ -463,6 +485,11 @@ def register_recruiter():
             'message': 'Recruiter registered successfully',
             'recruiter_id': cursor.lastrowid
         }), 201
+
+    except IntegrityError as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': format_integrity_error(e)}), 409
 
     except Exception as e:
         if connection:
@@ -741,7 +768,7 @@ def create_job():
     cursor = None
     
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         required_fields = ['title', 'department', 'location', 'recruiter_id']
@@ -775,6 +802,11 @@ def create_job():
             'job_id': cursor.lastrowid
         }), 201
         
+    except IntegrityError as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': format_integrity_error(e)}), 409
+
     except Exception as e:
         if connection:
             connection.rollback()
@@ -802,24 +834,40 @@ def apply_for_job():
     cursor = None
     
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         if 'candidate_id' not in data or 'job_id' not in data:
             return jsonify({'error': 'Missing required fields: candidate_id and job_id'}), 400
+
+        candidate_id = data['candidate_id']
+        job_id = data['job_id']
         
         connection = get_db_connection()
         if connection is None:
             return jsonify({'error': 'Database connection failed'}), 500
         
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT application_id
+            FROM Applications
+            WHERE job_id = %s AND candidate_id = %s
+            LIMIT 1
+            """,
+            (job_id, candidate_id)
+        )
+
+        if cursor.fetchone() is not None:
+            return jsonify({'error': 'You have already applied for this job'}), 409
         
         # Insert application
         sql = """
             INSERT INTO Applications (job_id, candidate_id, status)
             VALUES (%s, %s, 'Applied')
         """
-        values = (data['job_id'], data['candidate_id'])
+        values = (job_id, candidate_id)
         
         cursor.execute(sql, values)
         connection.commit()
@@ -829,6 +877,11 @@ def apply_for_job():
             'application_id': cursor.lastrowid
         }), 201
         
+    except IntegrityError as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': format_integrity_error(e)}), 409
+
     except Exception as e:
         if connection:
             connection.rollback()
@@ -973,6 +1026,11 @@ def schedule_interview():
             'interview_id': cursor.lastrowid
         }), 201
 
+    except IntegrityError as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': format_integrity_error(e)}), 409
+
     except Exception as e:
         if connection:
             connection.rollback()
@@ -1025,6 +1083,11 @@ def update_interview_status(interview_id):
         connection.commit()
 
         return jsonify({'message': 'Interview status updated successfully'}), 200
+
+    except IntegrityError as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': format_integrity_error(e)}), 409
 
     except Exception as e:
         if connection:

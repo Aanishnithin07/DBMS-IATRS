@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
+    <div id="notificationContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
     <div class="flex h-screen">
         <!-- Sidebar -->
         <aside class="w-64 bg-gradient-to-b from-blue-800 to-blue-900 text-white flex-shrink-0">
@@ -369,6 +370,37 @@
             window.location.href = 'login.html';
         }
 
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('notificationContainer');
+            const toast = document.createElement('div');
+            const style = type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-red-50 border-red-200 text-red-800';
+
+            toast.className = `max-w-sm px-4 py-3 rounded-lg border shadow-lg transition-opacity duration-300 ${style}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2500);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        async function getApiErrorMessage(response, fallbackMessage) {
+            const payload = await response.json().catch(() => null);
+            if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+                return payload.error;
+            }
+            if (payload && typeof payload.message === 'string' && payload.message.trim()) {
+                return payload.message;
+            }
+            return fallbackMessage;
+        }
+
         function showPostJobModal() {
             document.getElementById('postJobModal').classList.remove('hidden');
         }
@@ -426,8 +458,7 @@
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to post job');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to post job'));
                 }
 
                 form.reset();
@@ -437,6 +468,7 @@
             } catch (error) {
                 console.error('Error posting job:', error);
                 showJobPostMessage(error.message || 'Could not post job. Please try again.', 'error');
+                showToast(error.message || 'Could not post job. Please try again.', 'error');
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Post Job';
@@ -455,7 +487,7 @@
                 const response = await fetch(`${API_URL}/applications/recruiter/${currentUser.recruiter_id}`);
                 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch applications');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to fetch applications'));
                 }
 
                 const applications = await response.json();
@@ -492,6 +524,7 @@
                 console.error('Error loading applications:', error);
                 loadingState.classList.add('hidden');
                 errorState.classList.remove('hidden');
+                showToast(error.message || 'Could not load applications.', 'error');
             }
         }
 
@@ -619,9 +652,8 @@
                     })
                 });
 
-                const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to schedule interview');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to schedule interview'));
                 }
 
                 hideScheduleInterviewModal();
@@ -630,6 +662,7 @@
             } catch (error) {
                 console.error('Error scheduling interview:', error);
                 showInterviewMessage(error.message || 'Could not schedule interview.', 'error');
+                showToast(error.message || 'Could not schedule interview.', 'error');
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Schedule';
@@ -652,7 +685,7 @@
                 const response = await fetch(`${API_URL}/interviews/scheduled/recruiter/${currentUser.recruiter_id}`);
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch scheduled interviews');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to fetch scheduled interviews'));
                 }
 
                 const interviews = await response.json();
@@ -672,6 +705,7 @@
                 console.error('Error loading scheduled interviews:', error);
                 loadingState.classList.add('hidden');
                 errorState.classList.remove('hidden');
+                showToast(error.message || 'Could not load scheduled interviews.', 'error');
             }
         }
 
@@ -715,9 +749,8 @@
                     body: JSON.stringify({ status: newStatus })
                 });
 
-                const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to update interview status');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to update interview status'));
                 }
 
                 if (newStatus === 'Completed') {
@@ -730,6 +763,7 @@
             } catch (error) {
                 console.error('Error updating interview status:', error);
                 showInterviewMessage(error.message || 'Could not update interview status.', 'error');
+                showToast(error.message || 'Could not update interview status.', 'error');
             }
         }
 
@@ -760,12 +794,13 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to update application status');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to update application status'));
                 }
 
                 await loadDashboardData();
             } catch (error) {
                 console.error('Error updating application status:', error);
+                showToast(error.message || 'Could not update application status.', 'error');
             }
         }
 

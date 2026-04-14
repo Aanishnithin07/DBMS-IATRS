@@ -98,6 +98,17 @@
             window.location.href = 'login.html';
         }
 
+        async function getApiErrorMessage(response, fallbackMessage) {
+            const payload = await response.json().catch(() => null);
+            if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+                return payload.error;
+            }
+            if (payload && typeof payload.message === 'string' && payload.message.trim()) {
+                return payload.message;
+            }
+            return fallbackMessage;
+        }
+
         // Fetch and display jobs
         async function loadJobs() {
             const jobsContainer = document.getElementById('jobsContainer');
@@ -108,7 +119,7 @@
                 const response = await fetch(`${API_URL}/jobs`);
                 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch jobs');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to fetch jobs'));
                 }
 
                 const jobs = await response.json();
@@ -139,6 +150,7 @@
                 console.error('Error loading jobs:', error);
                 loadingState.classList.add('hidden');
                 errorState.classList.remove('hidden');
+                showNotification(error.message || 'Could not load jobs.', 'error');
             }
         }
 
@@ -246,7 +258,7 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to submit application');
+                    throw new Error(await getApiErrorMessage(response, 'Failed to submit application'));
                 }
 
                 buttonElement.textContent = 'Applied';
@@ -257,7 +269,7 @@
                 console.error('Error applying for job:', error);
                 buttonElement.disabled = false;
                 buttonElement.textContent = originalText;
-                showNotification('Could not submit application. Please try again.', 'error');
+                showNotification(error.message || 'Could not submit application. Please try again.', 'error');
             }
         }
     </script>

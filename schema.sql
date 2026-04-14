@@ -56,6 +56,7 @@ CREATE TABLE Applications (
     candidate_id INT NOT NULL,
     status ENUM('Applied', 'Screening', 'Interviewing', 'Rejected', 'Hired') NOT NULL DEFAULT 'Applied',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_job_candidate UNIQUE (job_id, candidate_id),
     CONSTRAINT fk_applications_job
         FOREIGN KEY (job_id)
         REFERENCES Jobs(job_id)
