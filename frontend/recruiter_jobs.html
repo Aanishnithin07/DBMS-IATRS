@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter Jobs - Smart ATS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <aside class="w-64 bg-gradient-to-b from-blue-800 to-blue-900 text-white flex-shrink-0">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold mb-8">Smart ATS</h1>
+                <nav class="space-y-2">
+                    <a href="dashboard.html" class="flex items-center px-4 py-3 hover:bg-blue-700 rounded-lg transition-colors">Applications</a>
+                    <a href="recruiter_jobs.html" class="flex items-center px-4 py-3 bg-blue-700 rounded-lg">Jobs</a>
+                    <a href="recruiter_candidates.html" class="flex items-center px-4 py-3 hover:bg-blue-700 rounded-lg transition-colors">Candidates</a>
+                    <a href="recruiter_analytics.html" class="flex items-center px-4 py-3 hover:bg-blue-700 rounded-lg transition-colors">Analytics</a>
+                </nav>
+            </div>
+            <div class="absolute bottom-0 w-64 p-6 border-t border-blue-700">
+                <p id="recruiterName" class="text-sm font-medium">Recruiter</p>
+                <p id="recruiterEmail" class="text-xs text-blue-300"></p>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto">
+            <header class="bg-white shadow-sm">
+                <div class="px-8 py-6 flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">My Posted Jobs</h2>
+                        <p class="text-gray-600 mt-1">Track and manage jobs you posted</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="postJobButton" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors">Post New Job</button>
+                        <button id="logoutBtn" type="button" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg transition-colors">Logout</button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-8">
+                <div id="jobPostMessage" class="hidden mb-6 px-4 py-3 rounded-lg border"></div>
+
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-800">Jobs</h3>
+                    </div>
+
+                    <div id="loadingState" class="text-center py-12">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                        <p class="mt-4 text-gray-600">Loading jobs...</p>
+                    </div>
+
+                    <div id="errorState" class="hidden text-center py-12">
+                        <div class="text-red-600 text-xl mb-2">Error Loading Jobs</div>
+                        <p class="text-gray-600">Please make sure backend is running.</p>
+                    </div>
+
+                    <div id="emptyState" class="hidden text-center py-12">
+                        <p class="text-gray-500">No jobs posted yet.</p>
+                    </div>
+
+                    <div id="tableContainer" class="hidden overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posted On</th>
+                                </tr>
+                            </thead>
+                            <tbody id="jobsTableBody" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="postJobModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-lg rounded-xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                <h3 class="text-lg font-semibold text-gray-800">Post New Job</h3>
+                <button id="closeJobModalButton" type="button" class="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>
+            </div>
+            <form id="postJobForm" class="px-6 py-5 space-y-4">
+                <div>
+                    <label for="jobTitle" class="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                    <input id="jobTitle" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label for="jobDepartment" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <input id="jobDepartment" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label for="jobLocation" class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                    <input id="jobLocation" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button id="cancelJobModalButton" type="button" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button id="submitJobButton" type="submit" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Post Job</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5001';
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!ensureRecruiterSession()) {
+                return;
+            }
+
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+            document.getElementById('postJobButton').addEventListener('click', showPostJobModal);
+            document.getElementById('closeJobModalButton').addEventListener('click', hidePostJobModal);
+            document.getElementById('cancelJobModalButton').addEventListener('click', hidePostJobModal);
+            document.getElementById('postJobForm').addEventListener('submit', handlePostJobSubmit);
+            document.getElementById('postJobModal').addEventListener('click', function(event) {
+                if (event.target.id === 'postJobModal') {
+                    hidePostJobModal();
+                }
+            });
+
+            loadRecruiterJobs();
+        });
+
+        function ensureRecruiterSession() {
+            try {
+                currentUser = JSON.parse(localStorage.getItem('user'));
+            } catch (error) {
+                currentUser = null;
+            }
+
+            if (!currentUser || currentUser.role !== 'recruiter') {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            if (!currentUser.recruiter_id && currentUser.id) {
+                currentUser.recruiter_id = currentUser.id;
+            }
+
+            if (!currentUser.recruiter_id) {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            document.getElementById('recruiterName').textContent = currentUser.full_name || 'Recruiter';
+            document.getElementById('recruiterEmail').textContent = currentUser.email || '';
+            return true;
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'login.html';
+        }
+
+        function showPostJobModal() {
+            document.getElementById('postJobModal').classList.remove('hidden');
+        }
+
+        function hidePostJobModal() {
+            document.getElementById('postJobModal').classList.add('hidden');
+        }
+
+        function showJobPostMessage(message, type = 'success') {
+            const messageElement = document.getElementById('jobPostMessage');
+            messageElement.textContent = message;
+            messageElement.className = `mb-6 px-4 py-3 rounded-lg border ${type === 'success' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'}`;
+        }
+
+        async function handlePostJobSubmit(event) {
+            event.preventDefault();
+
+            const submitButton = document.getElementById('submitJobButton');
+            const form = document.getElementById('postJobForm');
+            const payload = {
+                title: document.getElementById('jobTitle').value.trim(),
+                department: document.getElementById('jobDepartment').value.trim(),
+                location: document.getElementById('jobLocation').value.trim(),
+                recruiter_id: currentUser.recruiter_id
+            };
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Posting...';
+
+            try {
+                const response = await fetch(`${API_URL}/jobs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to post job');
+                }
+
+                form.reset();
+                hidePostJobModal();
+                showJobPostMessage('Job posted successfully!', 'success');
+                await loadRecruiterJobs();
+            } catch (error) {
+                showJobPostMessage(error.message || 'Could not post job. Please try again.', 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Post Job';
+            }
+        }
+
+        async function loadRecruiterJobs() {
+            const loadingState = document.getElementById('loadingState');
+            const errorState = document.getElementById('errorState');
+            const tableContainer = document.getElementById('tableContainer');
+            const emptyState = document.getElementById('emptyState');
+            const tableBody = document.getElementById('jobsTableBody');
+
+            try {
+                const response = await fetch(`${API_URL}/jobs/recruiter/${currentUser.recruiter_id}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch recruiter jobs');
+                }
+
+                const jobs = await response.json();
+                loadingState.classList.add('hidden');
+
+                if (!jobs.length) {
+                    emptyState.classList.remove('hidden');
+                    tableContainer.classList.add('hidden');
+                    return;
+                }
+
+                tableContainer.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                tableBody.innerHTML = '';
+
+                jobs.forEach(job => {
+                    const row = document.createElement('tr');
+                    const postedDate = new Date(job.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${job.title}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${job.department || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${job.location || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${job.status}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${postedDate}</td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading recruiter jobs:', error);
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

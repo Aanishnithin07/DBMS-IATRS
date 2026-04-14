@@ -3,6 +3,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from mysql.connector import IntegrityError
 import re
+import os
 from db_connect import get_db_connection
 
 # Initialize Flask app
@@ -502,7 +503,54 @@ def index():
     Returns:
         JSON response with success message
     """
-    return jsonify({'message': 'ATS API is running successfully!'})
+    return jsonify({
+        'message': 'ATS API is running successfully!',
+        'database': os.getenv('DB_NAME')
+    })
+
+@app.route('/meta/db-info', methods=['GET'])
+def get_database_info():
+    """Return current database metadata to help verify environment wiring."""
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute('SELECT DATABASE() AS current_database')
+        db_row = cursor.fetchone()
+
+        cursor.execute('SELECT COUNT(*) AS count FROM Recruiters')
+        recruiters = cursor.fetchone()['count']
+        cursor.execute('SELECT COUNT(*) AS count FROM Candidates')
+        candidates = cursor.fetchone()['count']
+        cursor.execute('SELECT COUNT(*) AS count FROM Jobs')
+        jobs = cursor.fetchone()['count']
+        cursor.execute('SELECT COUNT(*) AS count FROM Applications')
+        applications = cursor.fetchone()['count']
+
+        return jsonify({
+            'database': db_row['current_database'],
+            'env_db_name': os.getenv('DB_NAME'),
+            'counts': {
+                'recruiters': recruiters,
+                'candidates': candidates,
+                'jobs': jobs,
+                'applications': applications
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
 
 @app.route('/jobs', methods=['GET'])
 def get_jobs():
@@ -529,6 +577,48 @@ def get_jobs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
         
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/jobs/recruiter/<int:recruiter_id>', methods=['GET'])
+def get_jobs_by_recruiter(recruiter_id):
+    """
+    Fetch jobs posted by a specific recruiter.
+
+    Args:
+        recruiter_id: Recruiter ID
+
+    Returns:
+        JSON list of jobs posted by the recruiter
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT job_id, recruiter_id, title, department, location, status, created_at
+            FROM Jobs
+            WHERE recruiter_id = %s
+            ORDER BY created_at DESC
+            """,
+            (recruiter_id,)
+        )
+
+        jobs = cursor.fetchall()
+        return jsonify(jobs), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
     finally:
         if cursor:
             cursor.close()
@@ -789,6 +879,109 @@ def get_candidate_applications(candidate_id):
         applications = cursor.fetchall()
 
         return jsonify(applications), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/applications/recruiter/<int:recruiter_id>', methods=['GET'])
+def get_recruiter_applications(recruiter_id):
+    """
+    Fetch all applications for jobs owned by a specific recruiter.
+
+    Args:
+        recruiter_id: Recruiter ID
+
+    Returns:
+        JSON list of applications scoped to recruiter jobs
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        sql = """
+            SELECT
+                a.application_id,
+                c.candidate_id,
+                c.full_name AS candidate_name,
+                c.email AS candidate_email,
+                j.job_id,
+                j.title AS job_title,
+                j.department,
+                j.location,
+                a.status,
+                a.created_at
+            FROM Applications a
+            INNER JOIN Candidates c ON a.candidate_id = c.candidate_id
+            INNER JOIN Jobs j ON a.job_id = j.job_id
+            WHERE j.recruiter_id = %s
+            ORDER BY a.created_at DESC
+        """
+
+        cursor.execute(sql, (recruiter_id,))
+        applications = cursor.fetchall()
+        return jsonify(applications), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+@app.route('/candidates/recruiter/<int:recruiter_id>', methods=['GET'])
+def get_recruiter_candidates(recruiter_id):
+    """
+    Fetch distinct candidates who applied to jobs owned by a specific recruiter.
+
+    Args:
+        recruiter_id: Recruiter ID
+
+    Returns:
+        JSON list of candidate summaries
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        sql = """
+            SELECT
+                c.candidate_id,
+                c.full_name,
+                c.email,
+                c.phone,
+                COUNT(a.application_id) AS applications_count,
+                MAX(a.created_at) AS latest_application_at
+            FROM Candidates c
+            INNER JOIN Applications a ON c.candidate_id = a.candidate_id
+            INNER JOIN Jobs j ON a.job_id = j.job_id
+            WHERE j.recruiter_id = %s
+            GROUP BY c.candidate_id, c.full_name, c.email, c.phone
+            ORDER BY latest_application_at DESC
+        """
+
+        cursor.execute(sql, (recruiter_id,))
+        candidates = cursor.fetchall()
+        return jsonify(candidates), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
