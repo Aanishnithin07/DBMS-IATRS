@@ -5,23 +5,95 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart ATS - Career Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%); min-height: 100vh; }
+        .hero-gradient {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+        }
+        .job-card {
+            background: white;
+            border: 1px solid rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        .job-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
+            border-color: rgba(59,130,246,0.2);
+        }
+        .btn-apply {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            transition: all 0.3s ease;
+        }
+        .btn-apply:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+        }
+        .btn-apply:disabled {
+            background: linear-gradient(135deg, #94a3b8, #cbd5e1);
+            cursor: not-allowed;
+        }
+        .btn-applied {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        .toast {
+            animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s;
+        }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .status-open { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #15803d; }
+        .status-closed { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
+        .status-paused { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
+    </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-slate-50">
     <div id="notificationContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
     <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
-        <div class="container mx-auto px-6 py-8 flex items-start justify-between gap-4">
-            <div>
-                <h1 class="text-4xl font-bold">Smart ATS - Career Portal</h1>
-                <p class="mt-2 text-blue-100">Find your dream job today</p>
-            </div>
-            <div class="text-right">
-                <p id="candidateName" class="text-sm font-semibold"></p>
-                <p id="candidateEmail" class="text-xs text-blue-100"></p>
-                <div class="mt-2 flex gap-2 justify-end">
-                    <a href="my_applications.html" class="bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">My Applications</a>
-                    <button id="logoutBtn" type="button" class="bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">Logout</button>
+    <header class="hero-gradient text-white">
+        <div class="container mx-auto px-6 py-12">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold">Smart ATS</h1>
+                            <p class="text-blue-200 text-sm">Career Portal</p>
+                        </div>
+                    </div>
+                    <h2 class="text-4xl font-bold mt-6 mb-3">Find Your Dream Job</h2>
+                    <p class="text-blue-200 text-lg max-w-xl">Discover opportunities at top companies and take the next step in your career journey</p>
+                </div>
+                <div class="text-right">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-xl px-5 py-4 mb-3">
+                        <p id="candidateName" class="font-semibold"></p>
+                        <p id="candidateEmail" class="text-blue-200 text-sm"></p>
+                    </div>
+                    <div class="flex gap-2 justify-end">
+                        <a href="my_applications.html" class="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            My Applications
+                        </a>
+                        <button id="logoutBtn" type="button" class="bg-white/15 hover:bg-white/25 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -29,9 +101,14 @@
 
     <!-- Main Content -->
     <main class="container mx-auto px-6 py-12">
-        <div class="mb-8">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-2">Available Positions</h2>
-            <p class="text-gray-600">Explore opportunities and apply with one click</p>
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h3 class="text-2xl font-bold text-slate-800">Available Positions</h3>
+                <p class="text-slate-500 mt-1">Click on a job to view details and apply</p>
+            </div>
+            <div id="jobsCountBadge" class="bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold">
+                Loading...
+            </div>
         </div>
 
         <!-- Job Cards Grid -->
@@ -40,29 +117,43 @@
         </div>
 
         <!-- Loading State -->
-        <div id="loadingState" class="text-center py-12">
-            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            <p class="mt-4 text-gray-600">Loading jobs...</p>
+        <div id="loadingState" class="text-center py-20">
+            <div class="inline-block animate-spin rounded-full h-14 w-14 border-4 border-blue-200 border-t-blue-600"></div>
+            <p class="mt-6 text-slate-500 text-lg">Loading opportunities...</p>
         </div>
 
         <!-- Error State -->
-        <div id="errorState" class="hidden text-center py-12">
-            <div class="text-red-600 text-xl mb-2">⚠️ Error Loading Jobs</div>
-            <p class="text-gray-600">Please make sure the backend server is running.</p>
+        <div id="errorState" class="hidden text-center py-20">
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <p class="text-xl font-semibold text-slate-700">Unable to Load Jobs</p>
+            <p class="text-slate-500 mt-2">Please make sure the backend server is running.</p>
+            <button onclick="loadJobs()" class="mt-6 btn-apply text-white font-semibold px-6 py-3 rounded-xl">
+                Try Again
+            </button>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-20">
+            <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <p class="text-xl font-semibold text-slate-700">No Jobs Available</p>
+            <p class="text-slate-500 mt-2">Check back later for new opportunities.</p>
         </div>
     </main>
 
     <script>
-        // API Base URL
         const API_URL = 'http://127.0.0.1:5001';
         let currentUser = null;
 
-        // Load jobs when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            if (!ensureCandidateSession()) {
-                return;
-            }
-
+            if (!ensureCandidateSession()) return;
             document.getElementById('logoutBtn').addEventListener('click', logout);
             loadJobs();
         });
@@ -100,47 +191,39 @@
 
         async function getApiErrorMessage(response, fallbackMessage) {
             const payload = await response.json().catch(() => null);
-            if (payload && typeof payload.error === 'string' && payload.error.trim()) {
-                return payload.error;
-            }
-            if (payload && typeof payload.message === 'string' && payload.message.trim()) {
-                return payload.message;
-            }
+            if (payload && typeof payload.error === 'string' && payload.error.trim()) return payload.error;
+            if (payload && typeof payload.message === 'string' && payload.message.trim()) return payload.message;
             return fallbackMessage;
         }
 
-        // Fetch and display jobs
         async function loadJobs() {
             const jobsContainer = document.getElementById('jobsContainer');
             const loadingState = document.getElementById('loadingState');
             const errorState = document.getElementById('errorState');
+            const emptyState = document.getElementById('emptyState');
+
+            loadingState.classList.remove('hidden');
+            errorState.classList.add('hidden');
+            emptyState.classList.add('hidden');
+            jobsContainer.innerHTML = '';
 
             try {
                 const response = await fetch(`${API_URL}/jobs`);
-                
+
                 if (!response.ok) {
                     throw new Error(await getApiErrorMessage(response, 'Failed to fetch jobs'));
                 }
 
                 const jobs = await response.json();
-                
-                // Hide loading state
                 loadingState.classList.add('hidden');
 
-                // Clear container
-                jobsContainer.innerHTML = '';
+                document.getElementById('jobsCountBadge').textContent = `${jobs.length} positions`;
 
-                // Check if there are jobs
                 if (jobs.length === 0) {
-                    jobsContainer.innerHTML = `
-                        <div class="col-span-full text-center py-12 text-gray-500">
-                            No jobs available at the moment.
-                        </div>
-                    `;
+                    emptyState.classList.remove('hidden');
                     return;
                 }
 
-                // Create job cards
                 jobs.forEach(job => {
                     const jobCard = createJobCard(job);
                     jobsContainer.appendChild(jobCard);
@@ -154,86 +237,70 @@
             }
         }
 
-        // Create a job card element
         function createJobCard(job) {
             const card = document.createElement('div');
-            card.className = 'bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 p-6 border border-gray-200';
-            
+            card.className = 'job-card rounded-2xl overflow-hidden';
+
+            const statusClass = job.status === 'Open' ? 'status-open' :
+                               job.status === 'Closed' ? 'status-closed' : 'status-paused';
+
             card.innerHTML = `
-                <div class="flex items-start justify-between mb-4">
-                    <div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-2">${job.title}</h3>
-                        <span class="inline-block px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(job.status)} mb-2">
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/20">
+                            ${job.title.charAt(0)}
+                        </div>
+                        <span class="status-badge ${statusClass} text-xs font-semibold px-3 py-1 rounded-full">
                             ${job.status}
                         </span>
                     </div>
-                </div>
-                
-                <div class="space-y-2 mb-4">
-                    <div class="flex items-center text-gray-600">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        <span class="text-sm">${job.department}</span>
-                    </div>
-                    
-                    <div class="flex items-center text-gray-600">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span class="text-sm">${job.location}</span>
-                    </div>
-                </div>
-                
-                <button 
-                    data-job-title="${job.title}"
-                    onclick='applyForJob(${job.job_id}, this)'
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 ${job.status !== 'Open' ? 'opacity-50 cursor-not-allowed' : ''}"
-                    ${job.status !== 'Open' ? 'disabled' : ''}
-                >
-                    ${job.status === 'Open' ? 'Apply Now' : 'Not Available'}
-                </button>
-            `;
-            
-            return card;
-        }
 
-        // Get status color
-        function getStatusColor(status) {
-            switch(status) {
-                case 'Open':
-                    return 'bg-green-100 text-green-800';
-                case 'Closed':
-                    return 'bg-red-100 text-red-800';
-                case 'Paused':
-                    return 'bg-yellow-100 text-yellow-800';
-                default:
-                    return 'bg-gray-100 text-gray-800';
-            }
+                    <h3 class="text-xl font-bold text-slate-800 mb-2">${job.title}</h3>
+
+                    <div class="space-y-2 mb-5">
+                        <div class="flex items-center text-slate-600">
+                            <svg class="w-5 h-5 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            <span class="text-sm">${job.department || 'General'}</span>
+                        </div>
+                        <div class="flex items-center text-slate-600">
+                            <svg class="w-5 h-5 mr-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span class="text-sm">${job.location || 'Remote'}</span>
+                        </div>
+                    </div>
+
+                    <button
+                        data-job-title="${job.title}"
+                        onclick='applyForJob(${job.job_id}, this)'
+                        class="w-full btn-apply text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 ${job.status !== 'Open' ? 'opacity-50 cursor-not-allowed' : ''}"
+                        ${job.status !== 'Open' ? 'disabled' : ''}
+                    >
+                        ${job.status === 'Open' ? `
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Apply Now
+                        ` : 'Position Closed'}
+                    </button>
+                </div>
+            `;
+
+            return card;
         }
 
         function showNotification(message, type = 'success') {
             const container = document.getElementById('notificationContainer');
             const notification = document.createElement('div');
-            const style = type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-red-50 border-red-200 text-red-800';
-
-            notification.className = `max-w-sm px-4 py-3 rounded-lg border shadow-lg transition-opacity duration-300 ${style}`;
+            notification.className = `toast max-w-sm px-5 py-4 rounded-xl border shadow-lg ${type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`;
             notification.textContent = message;
             container.appendChild(notification);
-
-            setTimeout(() => {
-                notification.classList.add('opacity-0');
-            }, 2500);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
+            setTimeout(() => notification.remove(), 3000);
         }
 
-        // Apply for job function
         async function applyForJob(jobId, buttonElement) {
             if (!currentUser || !currentUser.candidate_id) {
                 showNotification('Please sign in as a candidate to apply.', 'error');
@@ -241,16 +308,20 @@
                 return;
             }
 
-            const originalText = buttonElement.textContent.trim();
+            const originalHTML = buttonElement.innerHTML;
             buttonElement.disabled = true;
-            buttonElement.textContent = 'Applying...';
+            buttonElement.innerHTML = `
+                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Applying...
+            `;
 
             try {
                 const response = await fetch(`${API_URL}/apply`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         job_id: jobId,
                         candidate_id: currentUser.candidate_id
@@ -261,14 +332,19 @@
                     throw new Error(await getApiErrorMessage(response, 'Failed to submit application'));
                 }
 
-                buttonElement.textContent = 'Applied';
-                buttonElement.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                buttonElement.classList.add('bg-green-600', 'cursor-not-allowed');
+                buttonElement.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Applied
+                `;
+                buttonElement.classList.remove('btn-apply');
+                buttonElement.classList.add('btn-applied');
                 showNotification(`Application submitted for ${buttonElement.dataset.jobTitle}!`, 'success');
             } catch (error) {
                 console.error('Error applying for job:', error);
                 buttonElement.disabled = false;
-                buttonElement.textContent = originalText;
+                buttonElement.innerHTML = originalHTML;
                 showNotification(error.message || 'Could not submit application. Please try again.', 'error');
             }
         }
