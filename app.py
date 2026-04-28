@@ -558,7 +558,7 @@ def login_with_role():
             return jsonify({'error': 'Invalid credentials'}), 401
 
         response_user = {
-            'id': user['user_id'],
+            'user_id': user['user_id'],
             'full_name': user['full_name'],
             'email': user['email'],
             'role': role

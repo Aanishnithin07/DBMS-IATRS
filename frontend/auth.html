@@ -161,7 +161,7 @@
                     throw new Error(responseData.error || 'Authentication failed');
                 }
 
-                localStorage.setItem('ats_current_user', JSON.stringify(responseData.user));
+                localStorage.setItem('user', JSON.stringify(responseData.user));
                 showMessage(responseData.message || 'Success', 'success');
 
                 setTimeout(() => {

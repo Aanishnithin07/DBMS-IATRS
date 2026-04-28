@@ -74,11 +74,11 @@
             const registerButton = document.getElementById('registerButton');
             const role = roleField.value;
 
-            const endpoint = role === 'candidate' ? '/register/candidate' : '/register/recruiter';
             const payload = {
                 full_name: document.getElementById('fullName').value.trim(),
                 email: document.getElementById('email').value.trim(),
-                password: document.getElementById('password').value
+                password: document.getElementById('password').value,
+                role: role
             };
 
             if (role === 'candidate') {
@@ -92,7 +92,7 @@
             registerButton.textContent = 'Registering...';
 
             try {
-                const response = await fetch(`${API_URL}${endpoint}`, {
+                const response = await fetch(`${API_URL}/auth/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

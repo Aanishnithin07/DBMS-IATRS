@@ -41,7 +41,7 @@
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Database Information</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-blue-50 p-4 rounded-lg">
-                    <div class="text-3xl font-bold text-blue-600" id="totalTables">5</div>
+                    <div class="text-3xl font-bold text-blue-600" id="totalTables">6</div>
                     <div class="text-gray-600">Total Tables</div>
                 </div>
                 <div class="bg-green-50 p-4 rounded-lg">
@@ -231,6 +231,51 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Users Table -->
+            <div class="table-card bg-white rounded-lg shadow-lg p-6 border-t-4 border-indigo-500">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-gray-800">🔐 Users</h3>
+                    <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-semibold" id="usersCount">0</span>
+                </div>
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center">
+                        <span class="text-yellow-500 mr-2">🔑</span>
+                        <code class="text-purple-600">user_id</code>
+                        <span class="text-gray-500 ml-2">INT PK</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-2">📝</span>
+                        <code>full_name</code>
+                        <span class="text-gray-500 ml-2">VARCHAR(100)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-2">📧</span>
+                        <code>email</code>
+                        <span class="text-gray-500 ml-2">UNIQUE</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-2">🔒</span>
+                        <code>password_hash</code>
+                        <span class="text-gray-500 ml-2">VARCHAR(255)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-2">👤</span>
+                        <code>role</code>
+                        <span class="text-gray-500 ml-2">ENUM</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-blue-500 mr-2">🔗</span>
+                        <code>candidate_id</code>
+                        <span class="text-gray-500 ml-2">INT FK</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-blue-500 mr-2">🔗</span>
+                        <code>recruiter_id</code>
+                        <span class="text-gray-500 ml-2">INT FK</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Relationships Diagram -->
@@ -307,26 +352,25 @@
         async function loadDatabaseStats() {
             try {
                 // Fetch counts from different endpoints
-                const [jobs, applications] = await Promise.all([
+                const [dbInfo, jobs, applications] = await Promise.all([
+                    fetch(`${API_URL}/meta/db-info`).then(r => r.json()),
                     fetch(`${API_URL}/jobs`).then(r => r.json()),
                     fetch(`${API_URL}/applications`).then(r => r.json())
                 ]);
 
-                // Update counts
-                document.getElementById('jobsCount').textContent = jobs.length;
-                document.getElementById('applicationsCount').textContent = applications.length;
-                
-                // Calculate unique counts from applications data
-                const uniqueCandidates = new Set(applications.map(app => app.candidate_email)).size;
-                const uniqueRecruiters = 5; // We know we have 5 from setup
-                
-                document.getElementById('candidatesCount').textContent = uniqueCandidates || 5;
-                document.getElementById('recruitersCount').textContent = uniqueRecruiters;
-                document.getElementById('interviewsCount').textContent = '0';
-                
+                // Update counts from actual database info
+                document.getElementById('jobsCount').textContent = dbInfo.counts.jobs;
+                document.getElementById('applicationsCount').textContent = dbInfo.counts.applications;
+                document.getElementById('candidatesCount').textContent = dbInfo.counts.candidates;
+                document.getElementById('recruitersCount').textContent = dbInfo.counts.recruiters;
+                document.getElementById('usersCount').textContent = dbInfo.counts.users || (dbInfo.counts.candidates + dbInfo.counts.recruiters);
+
                 // Total records
-                const total = jobs.length + applications.length + 5 + 5; // +5 candidates, +5 recruiters
+                const total = dbInfo.counts.jobs + dbInfo.counts.applications + dbInfo.counts.candidates + dbInfo.counts.recruiters;
                 document.getElementById('totalRecords').textContent = total;
+
+                // Interviews count needs separate query - set to 0 as placeholder
+                document.getElementById('interviewsCount').textContent = '-';
 
                 // Show data preview
                 showDataPreview(jobs, applications);
@@ -336,7 +380,7 @@
                 document.getElementById('dataPreview').innerHTML = `
                     <div class="text-center py-8 text-red-600">
                         <p>⚠️ Could not connect to API</p>
-                        <p class="text-sm mt-2">Make sure Flask server is running on port 5000</p>
+                        <p class="text-sm mt-2">Make sure Flask server is running on port 5001</p>
                     </div>
                 `;
             }
