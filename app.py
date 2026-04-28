@@ -896,10 +896,12 @@ def apply_for_job():
 @app.route('/applications/<int:app_id>/status', methods=['PUT'])
 def update_application_status(app_id):
     """
-    Update the status of an application.
+    Update the status of an application and log to StatusHistory.
 
     Expected JSON data:
         - status: New application status
+        - changed_by: User ID making the change (optional, defaults to system)
+        - change_reason: Reason for the change (optional)
 
     Args:
         app_id: Application ID
@@ -920,6 +922,9 @@ def update_application_status(app_id):
         if new_status not in ALLOWED_APPLICATION_STATUSES:
             return jsonify({'error': 'Invalid status value'}), 400
 
+        changed_by = data.get('changed_by', 1)
+        change_reason = data.get('change_reason', f'Status changed to {new_status}')
+
         connection = get_db_connection()
         if connection is None:
             return jsonify({'error': 'Database connection failed'}), 500
@@ -927,11 +932,14 @@ def update_application_status(app_id):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT application_id FROM Applications WHERE application_id = %s",
+            "SELECT application_id, status FROM Applications WHERE application_id = %s",
             (app_id,)
         )
-        if cursor.fetchone() is None:
+        result = cursor.fetchone()
+        if result is None:
             return jsonify({'error': 'Application not found'}), 404
+
+        old_status = result['status']
 
         sql = """
             UPDATE Applications
@@ -941,6 +949,13 @@ def update_application_status(app_id):
         values = (new_status, app_id)
 
         cursor.execute(sql, values)
+
+        # Log to status history
+        cursor.execute("""
+            INSERT INTO StatusHistory (application_id, old_status, new_status, changed_by, change_reason)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (app_id, old_status, new_status, changed_by, change_reason))
+
         connection.commit()
 
         return jsonify({'message': 'Status updated successfully'}), 200
@@ -1374,6 +1389,510 @@ def get_applications():
             cursor.close()
         if connection and connection.is_connected():
             connection.close()
+
+# =============================================
+# Interview Feedback Endpoints
+# =============================================
+
+@app.route('/interviews/<int:interview_id>/feedback', methods=['POST'])
+def submit_interview_feedback(interview_id):
+    """
+    Submit feedback for an interview.
+    Creates InterviewFeedback record and optionally updates application status.
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        recruiter_id = data.get('recruiter_id')
+        rating = data.get('rating')
+        technical_rating = data.get('technical_rating')
+        communication_rating = data.get('communication_rating')
+        culture_fit_rating = data.get('culture_fit_rating')
+        strengths = data.get('strengths', '')
+        concerns = data.get('concerns', '')
+        recommendation = data.get('recommendation')
+        additional_notes = data.get('additional_notes', '')
+        new_status = data.get('new_status')
+
+        if not all([recruiter_id, rating, recommendation]):
+            return jsonify({'error': 'rating and recommendation are required'}), 400
+
+        if rating and (rating < 1 or rating > 5):
+            return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+
+        if recommendation not in ['Strong Hire', 'Hire', 'No Hire', 'Strong No Hire']:
+            return jsonify({'error': 'Invalid recommendation value'}), 400
+
+        cursor = connection.cursor(dictionary=True)
+
+        # Check if feedback already exists
+        cursor.execute("SELECT feedback_id FROM InterviewFeedback WHERE interview_id = %s", (interview_id,))
+        if cursor.fetchone():
+            return jsonify({'error': 'Feedback already submitted for this interview'}), 409
+
+        # Verify interview exists and get application_id
+        cursor.execute("""
+            SELECT i.interview_id, i.application_id, a.candidate_id, j.recruiter_id
+            FROM Interviews i
+            JOIN Applications a ON i.application_id = a.application_id
+            JOIN Jobs j ON a.job_id = j.job_id
+            WHERE i.interview_id = %s
+        """, (interview_id,))
+        interview = cursor.fetchone()
+        if not interview:
+            return jsonify({'error': 'Interview not found'}), 404
+
+        # Insert feedback
+        cursor.execute("""
+            INSERT INTO InterviewFeedback
+            (interview_id, recruiter_id, rating, technical_rating, communication_rating,
+             culture_fit_rating, strengths, concerns, recommendation, additional_notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (interview_id, recruiter_id, rating, technical_rating, communication_rating,
+              culture_fit_rating, strengths, concerns, recommendation, additional_notes))
+
+        # Update interview status to Completed
+        cursor.execute(
+            "UPDATE Interviews SET status = 'Completed' WHERE interview_id = %s",
+            (interview_id,)
+        )
+
+        # Update application status if new_status provided
+        if new_status and new_status in ALLOWED_APPLICATION_STATUSES:
+            cursor.execute(
+                "UPDATE Applications SET status = %s WHERE application_id = %s",
+                (new_status, interview['application_id'])
+            )
+
+            # Log status change in history
+            cursor.execute("""
+                INSERT INTO StatusHistory (application_id, old_status, new_status, changed_by, change_reason)
+                SELECT application_id, status, %s, %s, %s
+                FROM Applications WHERE application_id = %s
+            """, (new_status, recruiter_id, f'Interview feedback: {recommendation}', interview['application_id']))
+
+        connection.commit()
+
+        return jsonify({
+            'message': 'Feedback submitted successfully',
+            'feedback_id': cursor.lastrowid,
+            'recommendation': recommendation
+        }), 201
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+
+@app.route('/interviews/<int:interview_id>/feedback', methods=['GET'])
+def get_interview_feedback(interview_id):
+    """Get feedback for a specific interview."""
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT f.*, r.full_name AS recruiter_name, r.company
+            FROM InterviewFeedback f
+            JOIN Recruiters r ON f.recruiter_id = r.recruiter_id
+            WHERE f.interview_id = %s
+        """, (interview_id,))
+
+        feedback = cursor.fetchone()
+
+        if not feedback:
+            return jsonify({'error': 'Feedback not found'}), 404
+
+        return jsonify(feedback), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+
+# =============================================
+# Candidate Rating Endpoints
+# =============================================
+
+@app.route('/applications/<int:application_id>/rating', methods=['PUT'])
+def rate_application(application_id):
+    """
+    Rate a candidate's application (1-5 stars with notes).
+    One rating per recruiter per application.
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        recruiter_id = data.get('recruiter_id')
+        rating = data.get('rating')
+        review_notes = data.get('review_notes', '')
+
+        if not all([recruiter_id, rating]):
+            return jsonify({'error': 'recruiter_id and rating are required'}), 400
+
+        if rating < 1 or rating > 5:
+            return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+
+        cursor = connection.cursor(dictionary=True)
+
+        # Verify application exists
+        cursor.execute(
+            "SELECT application_id FROM Applications WHERE application_id = %s",
+            (application_id,)
+        )
+        if not cursor.fetchone():
+            return jsonify({'error': 'Application not found'}), 404
+
+        # Upsert rating (update if exists, insert if not)
+        cursor.execute("""
+            INSERT INTO ApplicationRatings (application_id, recruiter_id, rating, review_notes)
+            VALUES (%s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                rating = VALUES(rating),
+                review_notes = VALUES(review_notes),
+                rated_at = CURRENT_TIMESTAMP
+        """, (application_id, recruiter_id, rating, review_notes))
+
+        connection.commit()
+
+        return jsonify({
+            'message': 'Rating saved successfully',
+            'rating': rating
+        }), 200
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+
+@app.route('/applications/<int:application_id>/rating', methods=['GET'])
+def get_application_rating(application_id):
+    """Get rating for an application by a specific recruiter."""
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        recruiter_id = request.args.get('recruiter_id')
+
+        cursor = connection.cursor(dictionary=True)
+
+        if recruiter_id:
+            cursor.execute("""
+                SELECT ar.*, r.full_name AS recruiter_name
+                FROM ApplicationRatings ar
+                JOIN Recruiters r ON ar.recruiter_id = r.recruiter_id
+                WHERE ar.application_id = %s AND ar.recruiter_id = %s
+            """, (application_id, recruiter_id))
+            rating = cursor.fetchone()
+            if not rating:
+                return jsonify({'error': 'Rating not found'}), 404
+            return jsonify(rating), 200
+        else:
+            # Get all ratings for this application
+            cursor.execute("""
+                SELECT ar.*, r.full_name AS recruiter_name
+                FROM ApplicationRatings ar
+                JOIN Recruiters r ON ar.recruiter_id = r.recruiter_id
+                WHERE ar.application_id = %s
+                ORDER BY ar.rated_at DESC
+            """, (application_id,))
+            ratings = cursor.fetchall()
+
+            avg_rating = sum(r['rating'] for r in ratings) / len(ratings) if ratings else None
+
+            return jsonify({
+                'ratings': ratings,
+                'average_rating': round(avg_rating, 1) if avg_rating else None,
+                'total_ratings': len(ratings)
+            }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+
+# =============================================
+# Status History Endpoints
+# =============================================
+
+@app.route('/applications/<int:application_id>/history', methods=['GET'])
+def get_application_history(application_id):
+    """Get complete status history for an application."""
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        # Get status history
+        cursor.execute("""
+            SELECT sh.*, u.full_name AS changed_by_name, u.role AS changed_by_role
+            FROM StatusHistory sh
+            JOIN Users u ON sh.changed_by = u.user_id
+            WHERE sh.application_id = %s
+            ORDER BY sh.changed_at ASC
+        """, (application_id,))
+        history = cursor.fetchall()
+
+        # Get current application status
+        cursor.execute("""
+            SELECT a.*, c.full_name AS candidate_name, j.title AS job_title
+            FROM Applications a
+            JOIN Candidates c ON a.candidate_id = c.candidate_id
+            JOIN Jobs j ON a.job_id = j.job_id
+            WHERE a.application_id = %s
+        """, (application_id,))
+        application = cursor.fetchone()
+
+        if not application:
+            return jsonify({'error': 'Application not found'}), 404
+
+        return jsonify({
+            'application': application,
+            'history': history
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+
+@app.route('/applications/<int:application_id>/status', methods=['PUT'])
+def update_application_status_v2(application_id):
+    """
+    Update application status with optional reason.
+    Logs the change to StatusHistory.
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        new_status = data.get('status')
+        changed_by = data.get('changed_by')
+        change_reason = data.get('change_reason', '')
+
+        if not all([new_status, changed_by]):
+            return jsonify({'error': 'status and changed_by are required'}), 400
+
+        if new_status not in ALLOWED_APPLICATION_STATUSES:
+            return jsonify({'error': f'Invalid status. Must be one of: {", ".join(ALLOWED_APPLICATION_STATUSES)}'}), 400
+
+        cursor = connection.cursor(dictionary=True)
+
+        # Get current status
+        cursor.execute(
+            "SELECT status FROM Applications WHERE application_id = %s",
+            (application_id,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({'error': 'Application not found'}), 404
+
+        old_status = result['status']
+
+        # Update status
+        cursor.execute(
+            "UPDATE Applications SET status = %s WHERE application_id = %s",
+            (new_status, application_id)
+        )
+
+        # Log to history
+        cursor.execute("""
+            INSERT INTO StatusHistory (application_id, old_status, new_status, changed_by, change_reason)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (application_id, old_status, new_status, changed_by, change_reason))
+
+        connection.commit()
+
+        return jsonify({
+            'message': 'Status updated successfully',
+            'old_status': old_status,
+            'new_status': new_status
+        }), 200
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
+
+# =============================================
+# Dashboard Analytics Endpoints
+# =============================================
+
+@app.route('/dashboard/recruiter/<int:recruiter_id>', methods=['GET'])
+def get_recruiter_dashboard(recruiter_id):
+    """
+    Get comprehensive recruiter dashboard data including:
+    - Job statistics
+    - Application counts by status
+    - Recent interviews
+    - Top candidates by rating
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        # Get jobs count
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM Jobs WHERE recruiter_id = %s",
+            (recruiter_id,)
+        )
+        jobs_count = cursor.fetchone()['count']
+
+        # Get applications by status
+        cursor.execute("""
+            SELECT a.status, COUNT(*) as count
+            FROM Applications a
+            JOIN Jobs j ON a.job_id = j.job_id
+            WHERE j.recruiter_id = %s
+            GROUP BY a.status
+        """, (recruiter_id,))
+        status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+
+        # Get total applications
+        total_apps = sum(status_counts.values())
+
+        # Get scheduled interviews
+        cursor.execute("""
+            SELECT COUNT(*) as count
+            FROM Interviews i
+            JOIN Applications a ON i.application_id = a.application_id
+            JOIN Jobs j ON a.job_id = j.job_id
+            WHERE j.recruiter_id = %s AND i.status = 'Scheduled'
+        """, (recruiter_id,))
+        scheduled_interviews = cursor.fetchone()['count']
+
+        # Get top rated candidates
+        cursor.execute("""
+            SELECT a.application_id, c.full_name, c.email, j.title AS job_title,
+                   AVG(ar.rating) as avg_rating, COUNT(ar.rating_id) as rating_count
+            FROM Applications a
+            JOIN Candidates c ON a.candidate_id = c.candidate_id
+            JOIN Jobs j ON a.job_id = j.job_id
+            JOIN ApplicationRatings ar ON a.application_id = ar.application_id
+            WHERE j.recruiter_id = %s
+            GROUP BY a.application_id
+            ORDER BY avg_rating DESC
+            LIMIT 5
+        """, (recruiter_id,))
+        top_candidates = cursor.fetchall()
+
+        # Recent interviews with feedback
+        cursor.execute("""
+            SELECT i.interview_id, i.scheduled_at, i.interview_type, i.status,
+                   c.full_name AS candidate_name, j.title AS job_title,
+                   f.feedback_id, f.recommendation, f.rating
+            FROM Interviews i
+            JOIN Applications a ON i.application_id = a.application_id
+            JOIN Candidates c ON a.candidate_id = c.candidate_id
+            JOIN Jobs j ON a.job_id = j.job_id
+            LEFT JOIN InterviewFeedback f ON i.interview_id = f.interview_id
+            WHERE j.recruiter_id = %s
+            ORDER BY i.scheduled_at DESC
+            LIMIT 10
+        """, (recruiter_id,))
+        recent_interviews = cursor.fetchall()
+
+        return jsonify({
+            'jobs_count': jobs_count,
+            'total_applications': total_apps,
+            'applications_by_status': status_counts,
+            'scheduled_interviews': scheduled_interviews,
+            'top_candidates': top_candidates,
+            'recent_interviews': recent_interviews
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+
 
 if __name__ == '__main__':
     initialize_auth_table()

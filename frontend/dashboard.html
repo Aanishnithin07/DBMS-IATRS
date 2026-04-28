@@ -264,7 +264,7 @@
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Job Role</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Applied Date</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                    <th class="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Match Score</th>
+                                    <th class="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Rating</th>
                                     <th class="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
                                 </tr>
                             </thead>
@@ -283,6 +283,15 @@
                         <p class="text-slate-600 font-medium">No applications yet</p>
                         <p class="text-slate-500 text-sm mt-1">Applications will appear here when candidates apply.</p>
                     </div>
+                </div>
+
+                <!-- Rating Legend -->
+                <div class="mt-4 flex items-center gap-6 text-sm text-slate-500">
+                    <span>Click ★ to rate candidate</span>
+                    <span>|</span>
+                    <span>Click status to change</span>
+                    <span>|</span>
+                    <span>Schedule appears after Screening</span>
                 </div>
 
                 <!-- Scheduled Interviews Section -->
@@ -411,11 +420,127 @@
         </div>
     </div>
 
+    <!-- Interview Feedback Modal -->
+    <div id="feedbackModal" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+        <div class="modal-content w-full max-w-lg bg-white rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between px-6 py-5 border-b border-slate-200 sticky top-0 bg-white">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800">Interview Feedback</h3>
+                    <p id="feedbackContext" class="text-sm text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="hideFeedbackModal()" type="button" class="w-10 h-10 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="feedbackForm" class="px-6 py-5 space-y-5">
+                <input type="hidden" id="feedbackInterviewId" value="">
+                <input type="hidden" id="feedbackApplicationId" value="">
+
+                <!-- Overall Rating -->
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Overall Rating *</label>
+                    <div id="starRating" class="flex gap-1">
+                        <button type="button" onclick="setRating(1)" class="text-3xl text-slate-300 hover:text-amber-400 transition-colors">★</button>
+                        <button type="button" onclick="setRating(2)" class="text-3xl text-slate-300 hover:text-amber-400 transition-colors">★</button>
+                        <button type="button" onclick="setRating(3)" class="text-3xl text-slate-300 hover:text-amber-400 transition-colors">★</button>
+                        <button type="button" onclick="setRating(4)" class="text-3xl text-slate-300 hover:text-amber-400 transition-colors">★</button>
+                        <button type="button" onclick="setRating(5)" class="text-3xl text-slate-300 hover:text-amber-400 transition-colors">★</button>
+                    </div>
+                    <input type="hidden" id="ratingValue" value="0">
+                </div>
+
+                <!-- Recommendation -->
+                <div>
+                    <label for="recommendation" class="block text-sm font-semibold text-slate-700 mb-2">Recommendation *</label>
+                    <select id="recommendation" required class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">Select recommendation...</option>
+                        <option value="Strong Hire">Strong Hire</option>
+                        <option value="Hire">Hire</option>
+                        <option value="No Hire">No Hire</option>
+                        <option value="Strong No Hire">Strong No Hire</option>
+                    </select>
+                </div>
+
+                <!-- Strengths -->
+                <div>
+                    <label for="strengths" class="block text-sm font-semibold text-slate-700 mb-2">Strengths</label>
+                    <textarea id="strengths" rows="2" placeholder="What did the candidate do well?" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                </div>
+
+                <!-- Concerns -->
+                <div>
+                    <label for="concerns" class="block text-sm font-semibold text-slate-700 mb-2">Concerns</label>
+                    <textarea id="concerns" rows="2" placeholder="Any areas of concern?" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                </div>
+
+                <!-- New Application Status -->
+                <div>
+                    <label for="newAppStatus" class="block text-sm font-semibold text-slate-700 mb-2">Update Application Status</label>
+                    <select id="newAppStatus" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">Keep current status</option>
+                        <option value="Screening">Screening</option>
+                        <option value="Interviewing">Interviewing</option>
+                        <option value="Hired">Hired</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <!-- Additional Notes -->
+                <div>
+                    <label for="additionalNotes" class="block text-sm font-semibold text-slate-700 mb-2">Additional Notes</label>
+                    <textarea id="additionalNotes" rows="2" placeholder="Any other comments..." class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                </div>
+
+                <div id="feedbackMessage" class="hidden px-4 py-3 rounded-lg border text-sm"></div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="hideFeedbackModal()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors">Cancel</button>
+                    <button id="submitFeedbackButton" type="submit" class="btn-primary px-5 py-2.5 rounded-xl text-white font-medium">Submit Feedback</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application History Modal -->
+    <div id="historyModal" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+        <div class="modal-content w-full max-w-lg bg-white rounded-2xl shadow-2xl">
+            <div class="flex items-center justify-between px-6 py-5 border-b border-slate-200">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800">Application Status History</h3>
+                    <p id="historyContext" class="text-sm text-slate-500 mt-0.5"></p>
+                </div>
+                <button onclick="hideHistoryModal()" type="button" class="w-10 h-10 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div id="historyLoading" class="text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-200 border-t-blue-600"></div>
+                <p class="mt-4 text-slate-500">Loading history...</p>
+            </div>
+
+            <div id="historyContent" class="hidden px-6 py-5">
+                <div id="historyTimeline" class="space-y-4"></div>
+            </div>
+
+            <div id="historyError" class="hidden text-center py-12">
+                <p class="text-red-600">Error loading history</p>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const API_URL = 'http://127.0.0.1:5001';
+        const API_URL = 'http://localhost:5001';
         let currentUser = null;
         let applicationsById = {};
         let selectedApplicationId = null;
+        let currentRating = 0;
+        let appRatings = {};
 
         document.addEventListener('DOMContentLoaded', function() {
             if (!ensureRecruiterSession()) return;
@@ -434,6 +559,13 @@
             document.getElementById('scheduleInterviewModal').addEventListener('click', function(event) {
                 if (event.target.id === 'scheduleInterviewModal') hideScheduleInterviewModal();
             });
+            document.getElementById('feedbackModal').addEventListener('click', function(event) {
+                if (event.target.id === 'feedbackModal') hideFeedbackModal();
+            });
+            document.getElementById('historyModal').addEventListener('click', function(event) {
+                if (event.target.id === 'historyModal') hideHistoryModal();
+            });
+            document.getElementById('feedbackForm').addEventListener('submit', handleFeedbackSubmit);
 
             loadDashboardData();
         });
@@ -578,6 +710,21 @@
                     applicationsById[app.application_id] = app;
                 });
 
+                // Fetch ratings for all applications
+                appRatings = {};
+                const ratingPromises = applications.map(async (app) => {
+                    try {
+                        const ratingRes = await fetch(`${API_URL}/applications/${app.application_id}/rating`);
+                        if (ratingRes.ok) {
+                            const data = await ratingRes.json();
+                            if (data.average_rating) {
+                                appRatings[app.application_id] = data.average_rating;
+                            }
+                        }
+                    } catch (e) {}
+                });
+                await Promise.all(ratingPromises);
+
                 loadingState.classList.add('hidden');
 
                 if (applications.length === 0) {
@@ -614,12 +761,12 @@
                 .map(status => `<option value="${status}" ${app.status === status ? 'selected' : ''}>${status}</option>`)
                 .join('');
 
-            const matchScore = Math.floor(Math.random() * 38) + 60;
             const appliedDate = new Date(app.created_at).toLocaleDateString('en-US', {
                 year: 'numeric', month: 'short', day: 'numeric'
             });
 
-            const statusClass = `status-${app.status.toLowerCase()}`;
+            const avgRating = appRatings[app.application_id];
+            const starsHtml = renderStars(avgRating || 0, app.application_id);
 
             row.innerHTML = `
                 <td class="px-6 py-4">
@@ -642,17 +789,18 @@
                     <div class="text-xs text-slate-400">${app.location}</div>
                 </td>
                 <td class="px-6 py-4">
-                    <select onchange="updateStatus(${app.application_id}, this.value)"
-                        class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer">
-                        ${statusOptions}
-                    </select>
+                    <div class="flex flex-col gap-1">
+                        <select onchange="updateStatus(${app.application_id}, this.value)"
+                            class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer">
+                            ${statusOptions}
+                        </select>
+                        <button onclick="showHistoryModal(${app.application_id}, '${app.candidate_name}')" class="text-xs text-blue-600 hover:text-blue-800 text-left">View History</button>
+                    </div>
                 </td>
                 <td class="px-6 py-4">
-                    <div class="flex items-center gap-3">
-                        <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                            <div class="h-full ${getScoreColor(matchScore)} transition-all duration-500" style="width: ${matchScore}%"></div>
-                        </div>
-                        <span class="text-sm font-semibold ${getScoreTextColor(matchScore)} w-10">${matchScore}%</span>
+                    <div class="flex flex-col gap-1">
+                        ${starsHtml}
+                        <span class="text-xs text-slate-400">${avgRating ? avgRating.toFixed(1) : 'Not rated'}</span>
                     </div>
                 </td>
                 <td class="px-6 py-4">
@@ -664,6 +812,39 @@
             `;
 
             return row;
+        }
+
+        function renderStars(rating, appId) {
+            let html = '<div class="flex gap-0.5">';
+            for (let i = 1; i <= 5; i++) {
+                const color = i <= rating ? 'text-amber-400' : 'text-slate-300';
+                html += `<button type="button" onclick="rateApplication(${appId}, ${i})" class="${color} hover:text-amber-500 transition-colors text-lg">★</button>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        async function rateApplication(appId, rating) {
+            try {
+                const response = await fetch(`${API_URL}/applications/${appId}/rating`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recruiter_id: currentUser.recruiter_id,
+                        rating: rating,
+                        review_notes: ''
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to save rating');
+
+                appRatings[appId] = rating;
+                showToast(`Rated ${rating} stars!`, 'success');
+                await loadDashboardData();
+            } catch (error) {
+                console.error('Error rating application:', error);
+                showToast(error.message || 'Could not save rating', 'error');
+            }
         }
 
         function showScheduleInterviewModal(applicationId) {
@@ -791,9 +972,10 @@
                 <td class="px-6 py-4 text-sm text-slate-700">${interview.interview_type}</td>
                 <td class="px-6 py-4">
                     <select onchange="updateInterviewStatus(${interview.interview_id}, this.value)"
-                        class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer">
+                        class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer mb-1">
                         ${statusOptions}
                     </select>
+                    ${interview.status === 'Completed' ? `<button onclick="showFeedbackModal(${interview.interview_id}, ${interview.application_id}, '${interview.candidate_name}', '${interview.job_title}')" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Give Feedback</button>` : ''}
                 </td>
             `;
 
@@ -840,14 +1022,18 @@
                 const response = await fetch(`${API_URL}/applications/${appId}/status`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: newStatus })
+                    body: JSON.stringify({
+                        status: newStatus,
+                        changed_by: currentUser.user_id,
+                        change_reason: `Status manually changed to ${newStatus}`
+                    })
                 });
 
                 if (!response.ok) {
                     throw new Error(await getApiErrorMessage(response, 'Failed to update application status'));
                 }
 
-                showToast('Application status updated!', 'success');
+                showToast(`Status updated to ${newStatus}!`, 'success');
                 await loadDashboardData();
             } catch (error) {
                 console.error('Error updating application status:', error);
@@ -867,6 +1053,133 @@
             if (score >= 70) return 'text-blue-600';
             if (score >= 60) return 'text-amber-600';
             return 'text-red-600';
+        }
+
+        function setRating(rating) {
+            currentRating = rating;
+            document.getElementById('ratingValue').value = rating;
+            const stars = document.querySelectorAll('#starRating button');
+            stars.forEach((star, index) => {
+                star.className = index < rating ? 'text-3xl text-amber-400 hover:text-amber-500 transition-colors' : 'text-3xl text-slate-300 hover:text-amber-400 transition-colors';
+            });
+        }
+
+        function showFeedbackModal(interviewId, applicationId, candidateName, jobTitle) {
+            document.getElementById('feedbackInterviewId').value = interviewId;
+            document.getElementById('feedbackApplicationId').value = applicationId;
+            document.getElementById('feedbackContext').textContent = `${candidateName} - ${jobTitle}`;
+            document.getElementById('feedbackForm').reset();
+            setRating(0);
+            document.getElementById('feedbackMessage').classList.add('hidden');
+            document.getElementById('feedbackModal').classList.remove('hidden');
+        }
+
+        function hideFeedbackModal() {
+            document.getElementById('feedbackModal').classList.add('hidden');
+            currentRating = 0;
+        }
+
+        async function handleFeedbackSubmit(event) {
+            event.preventDefault();
+
+            if (currentRating === 0) {
+                const msg = document.getElementById('feedbackMessage');
+                msg.textContent = 'Please select a rating';
+                msg.className = 'px-4 py-3 rounded-lg border text-sm bg-red-50 border-red-200 text-red-800';
+                return;
+            }
+
+            const submitButton = document.getElementById('submitFeedbackButton');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+
+            try {
+                const response = await fetch(`${API_URL}/interviews/${document.getElementById('feedbackInterviewId').value}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recruiter_id: currentUser.recruiter_id,
+                        rating: currentRating,
+                        recommendation: document.getElementById('recommendation').value,
+                        strengths: document.getElementById('strengths').value,
+                        concerns: document.getElementById('concerns').value,
+                        new_status: document.getElementById('newAppStatus').value,
+                        additional_notes: document.getElementById('additionalNotes').value
+                    })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to submit feedback');
+                }
+
+                hideFeedbackModal();
+                showToast('Feedback submitted successfully!', 'success');
+                await loadDashboardData();
+            } catch (error) {
+                const msg = document.getElementById('feedbackMessage');
+                msg.textContent = error.message || 'Could not submit feedback';
+                msg.className = 'px-4 py-3 rounded-lg border text-sm bg-red-50 border-red-200 text-red-800';
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Feedback';
+            }
+        }
+
+        async function showHistoryModal(applicationId, candidateName) {
+            document.getElementById('historyModal').classList.remove('hidden');
+            document.getElementById('historyLoading').classList.remove('hidden');
+            document.getElementById('historyContent').classList.add('hidden');
+            document.getElementById('historyError').classList.add('hidden');
+            document.getElementById('historyContext').textContent = candidateName;
+
+            try {
+                const response = await fetch(`${API_URL}/applications/${applicationId}/history`);
+                if (!response.ok) throw new Error('Failed to fetch history');
+
+                const data = await response.json();
+                document.getElementById('historyLoading').classList.add('hidden');
+                document.getElementById('historyContent').classList.remove('hidden');
+
+                const timeline = document.getElementById('historyTimeline');
+                timeline.innerHTML = '';
+
+                if (data.history.length === 0) {
+                    timeline.innerHTML = '<p class="text-slate-500 text-center py-4">No status history available</p>';
+                    return;
+                }
+
+                data.history.forEach((entry, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'flex gap-4';
+                    const isLatest = index === data.history.length - 1;
+                    div.innerHTML = `
+                        <div class="flex flex-col items-center">
+                            <div class="w-8 h-8 rounded-full ${isLatest ? 'bg-blue-500' : 'bg-slate-200'} flex items-center justify-center">
+                                <span class="text-white text-xs font-bold">${index + 1}</span>
+                            </div>
+                            ${index < data.history.length - 1 ? '<div class="w-0.5 h-full bg-slate-200"></div>' : ''}
+                        </div>
+                        <div class="flex-1 pb-6">
+                            <div class="flex items-center gap-2">
+                                ${entry.old_status ? `<span class="text-sm text-slate-400 line-through">${entry.old_status}</span>` : ''}
+                                <span class="text-sm text-slate-600">→</span>
+                                <span class="text-sm font-semibold ${isLatest ? 'text-blue-600' : 'text-slate-800'}">${entry.new_status}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">${entry.change_reason || 'No reason provided'}</p>
+                            <p class="text-xs text-slate-400 mt-0.5">By ${entry.changed_by_name} • ${new Date(entry.changed_at).toLocaleString()}</p>
+                        </div>
+                    `;
+                    timeline.appendChild(div);
+                });
+            } catch (error) {
+                document.getElementById('historyLoading').classList.add('hidden');
+                document.getElementById('historyError').classList.remove('hidden');
+            }
+        }
+
+        function hideHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
         }
 
         function updateStats(applications) {
